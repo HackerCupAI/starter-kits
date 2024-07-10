@@ -3,29 +3,36 @@ Recommended tools:
 - Docker
 
 ## Building and Running Docker Image
-Optionally configure env vars in dockerfile or in a .env file
-env vars include:
-- GPT4_OAI_API 
-- GPT4_ORGANIZATION
-- GPT_MODEL *optional* (default gpt-4o) 
-- VISION_MODEL *optional* (default gpt-4o) 
-- VISION_ORGANIZATION *optional* (default GPT4_ORGANIZATION)
-- VISION_OAI_API *optional* (default GPT4_OAI_API)
+
+
+Add a file named `.env` to root with at a minimum the following content:
+```bash
+GPT4_OAI_API=<oai_api_key> 
+GPT4_ORGANIZATION=<oai_org>
+GPT_MODEL=<oai_model>  # *optional* (default gpt-4o) 
+VISION_MODEL=<oai_model> #*optional* (default gpt-4o) 
+VISION_ORGANIZATION=<oai_api_key> # *optional* (default GPT4_ORGANIZATION)
+VISION_OAI_API=<oai_org> # *optional* (default GPT4_OAI_API) 
+```
 
 This will throw an error without required envs. Check [Config](./app/config/config.py) for more configuration options.
 
 In the root folder run the following to build
-`docker build -f ./Dockerfile -t autogen_dev_img .`
+```bash
+docker build -f ./Dockerfile -t autogen_dev_img .
+```
 
-After image is built, run the docker image with one of the following (replace `main-<file>.py` with target file):
-- With .env file:`docker run --env-file ./.env  -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/main-<file>.py`
+After image is built, run the docker image with one of the following (replace `<file>.py` with target file):
 
-- With dockerfile ENV: `docker run -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/main-<file>.py`
+```bash 
+docker run --env-file ./.env  -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/<file>.py
+```
 
-The simple example case using agents in a coding scenario:
+
+- The simple example using multiple agents in a coding scenario:
 `main-simple.py`
 
-For complex example using agents to solve HackerRank problem:
+- For complex example using multiple agents to solve [DimSum HackerRank practice problem](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B):
 `main-hackercup.py`
 
 More info on Docker installation with autogen:  https://microsoft.github.io/autogen/docs/installation/Docker/
