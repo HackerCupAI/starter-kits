@@ -7,15 +7,23 @@ Recommended tools:
 
 Add a file named `.env` to root with at a minimum the following content:
 ```bash
-GPT4_OAI_API=<oai_api_key> 
-GPT4_ORGANIZATION=<oai_org>
-GPT_MODEL=<oai_model>  # *optional* (default gpt-4o) 
-VISION_MODEL=<oai_model> #*optional* (default gpt-4o) 
-VISION_ORGANIZATION=<oai_api_key> # *optional* (default GPT4_ORGANIZATION)
-VISION_OAI_API=<oai_org> # *optional* (default GPT4_OAI_API) 
-```
+OAI_API_KEY=<oai_api_key> 
+OAI_ORGANIZATION=<oai_org>
+OAI_MODEL=<oai_model>  # *optional* (default gpt-4o) 
+OAI_BASE_URL=<oia_url> # *optional* 
+OAI_API_VERSION=<oia_version> # *optional*
+OAI_API_TYPE=<oai_type> # *optional* (default "openai")
 
-This will throw an error without required envs. Check [Config](./app/config/config.py) for more configuration options.
+VISION_OAI_MODEL=<oai_model> #*optional* (default gpt-4o) 
+VISION_OAI_ORGANIZATION=<oai_org> # *optional* 
+VISION_OAI_API_KEY=<oai_api_key> # *optional* 
+VISION_OAI_BASE_URL=<oia_url> #* optional
+VISION_OAI_API_VERSION=<oia_version> # *optional*
+VISION_OAI_API_TYPE=<oai_type> # *optional* (default "openai")
+```
+see [LLM Config](https://microsoft.github.io/autogen/docs/topics/llm_configuration/) for more info.
+
+Running a py script  will throw an error without required envs. Check [Config](./app/config/config.py) for more configuration options.
 
 In the root folder run the following to build
 ```bash
