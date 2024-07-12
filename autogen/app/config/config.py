@@ -8,6 +8,8 @@ OIA_API_TYPE = os.environ["OAI_API_TYPE"] if "OAI_API_TYPE" in os.environ else D
 
 VISION_OAI_API_TYPE = os.environ["VISION_OAI_API_TYPE"] if "VISION_OAI_API_TYPE" in os.environ else DEFAULT_API_TYPE
 
+WORKING_DIR = "/home/autogen/autogen/app"
+
 
 def check_required_vars(API_TYPE):
     if API_TYPE == "openai":
@@ -63,7 +65,7 @@ vision_model_config = setup_vision_llm(VISION_OAI_API_TYPE)
 
 VISION_CONFIG = {"config_list": [vision_model_config],"temperature": 0.5,  "max_tokens": DEFAULT_MAX_TOKENS, "timeout": DEFAULT_TIMEOUT}
 
-GPT4_CONFIG ={"config_list": [model_config], "timeout": DEFAULT_TIMEOUT}
+GPT4_CONFIG ={"config_list": [model_config], "timeout": DEFAULT_TIMEOUT, "temperature": 0.8}
 
 print(f"GPT4_CONFIG: {GPT4_CONFIG}")
 
