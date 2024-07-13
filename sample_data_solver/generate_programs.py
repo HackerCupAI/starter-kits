@@ -62,6 +62,11 @@ for case_num in range(1, T + 1):
             pass
     if len(a) == 1:
         a = a[0]
+    else:
+        # Simplify when first item is number of strings in list
+        if isinstance(a[0], int) and isinstance(a[1], str):
+            if (len(a) - 1) == a[0]:
+                a = a[1:]
     print(f"Case #{case_num}: {f(a)}")
 """
 
