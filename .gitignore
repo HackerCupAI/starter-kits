@@ -68,6 +68,8 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+tmp_code*.py
+
 # Sphinx documentation
 docs/_build/
 
