@@ -1,4 +1,4 @@
-# Hacker Rank Code Sample
+# HackerCup Code Sample
 Recommended tools:
 - Docker
 
@@ -30,17 +30,20 @@ In the root folder run the following to build
 docker build -f ./Dockerfile -t autogen_dev_img .
 ```
 
-After image is built, run the docker image with one of the following (replace `<file>.py` with target file):
+After image is built, run the docker image with one of the following:
 
 ```bash 
-docker run --env-file ./.env  -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/<file>.py
+docker run --env-file ./.env  -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/<file>.py <path to data dir> 
+```
+For example,  to solve [DimSum HackerRank practice problem](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B):
+
+```bash 
+docker run --env-file ./.env  -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/hackercup.py /home/autogen/autogen/app/assets/nim_sum_dim_sum
 ```
 
+- The simple example using multiple agents in a coding scenario, which is a good place to start with AutoGen and coding agents:
+`simple_agent.py`
 
-- The simple example using multiple agents in a coding scenario:
-`main-simple.py`
-
-- For complex example using multiple agents to solve [DimSum HackerRank practice problem](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B):
-`main-hackercup.py`
+- A more complex agent is defined in `groupchat_agents.py`
 
 More info on Docker installation with autogen:  https://microsoft.github.io/autogen/docs/installation/Docker/
