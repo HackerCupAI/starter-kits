@@ -19,7 +19,7 @@ from autogen.agentchat.contrib.img_utils import get_pil_image, pil_to_data_uri
 from autogen.agentchat.contrib.multimodal_conversable_agent import MultimodalConversableAgent
 from autogen.code_utils import content_str
 
-ENABLE_LOGGING = False
+ENABLE_LOGGING = True
 working_dir = "/home/autogen/autogen/app"
 timestamp = time.time()
 logname = f"{working_dir}/logs/{timestamp}_simple_log.log"
