@@ -162,14 +162,23 @@ class SelfInspectingCoder(ConversableAgent):
         coder = autogen.AssistantAgent(
             name="Coder",
             llm_config=GPT4_CONFIG,
-            system_message=f"""Coder. Create Python code based on discussions with the Solution Architect and Logic Critic. 
-            Ensure your code strictly follows the input and output format specifications provided by the Problem Analyst. 
-            Your code should read inputs from a file and generate results in another file. 
-            Allow the caller to specify the locations of these two files. 
-            Test your code with input sample file: {self._input_samples['location']}, compaire your output with example outputs {self._output_samples['contents']}
-            If test passes, run your code with input file :{self._inputs['location']} and save output to generated_output.txt
-            Save your code into generated_code.txt and verify the file is saved correctly then notify the group.
+            system_message=f"""Coder, you are an expert in writing Python code. You must do all the following steps:
+            1. Write Python code based on discussions with the Solution Architect and Logic Critic. 
+            Ensure your code strictly follows the input and output format specifications provided by the Problem Analyst.
+            The code should read inputs from a file and generate results to another file. Allow the caller to specify the locations of these two files.
+            2.Test your code with input sample file: {self._input_samples['location']}, compaire your output with example outputs {self._output_samples['contents']}
+            3.Run your code on input file:{self._inputs['location']} and save output to generated_output.txt
+            4.Save your code into generated_code.txt and verify the file is saved correctly.
+            Once you complete these steps, notify the group.
             """,
+            # system_message=f"""Coder.Create Python code based on discussions with the Solution Architect and Logic Critic. 
+            # Ensure your code strictly follows the input and output format specifications provided by the Problem Analyst. 
+            # Your code should read inputs from a file and generate results in another file. 
+            # Allow the caller to specify the locations of these two files. 
+            # Test your code with input sample file: {self._input_samples['location']}, compaire your output with example outputs {self._output_samples['contents']}
+            # If test passes, run your code with input file :{self._inputs['location']} and save output to generated_output.txt
+            # Save your code into generated_code.txt and verify the file is saved correctly then notify the group.
+            # """,
             human_input_mode="NEVER",
             max_consecutive_auto_reply=3,
             code_execution_config={"work_dir": WORKING_DIR, "use_docker": True,}
