@@ -147,7 +147,7 @@ class SelfInspectingCoder(ConversableAgent):
 
 
 
-creator = SelfInspectingCoder(name="Self Inspecting Coder~", llm_config=GPT4_CONFIG)
+creator = SelfInspectingCoder(name="Self Inspecting Coder", llm_config=GPT4_CONFIG)
 
 user_proxy = autogen.UserProxyAgent(
     name="User", human_input_mode="NEVER", max_consecutive_auto_reply=0, code_execution_config={

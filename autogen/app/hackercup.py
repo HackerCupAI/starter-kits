@@ -21,19 +21,20 @@ def main():
     (problem_statement, inputs, outputs, input_samples, output_samples, images) = get_problemset(data_dir)  
     
     problem_content = problem_statement["contents"]
-    image_contents = images['contents']
-    input_contents = inputs['contents']
-    input_sample_contents = input_samples['contents']
-    output_sample_contents = output_samples['contents']
+    print (problem_content)
+    # image_contents = images['contents']
+    # input_contents = inputs['contents']
+    # input_sample_contents = input_samples['contents']
+    # output_sample_contents = output_samples['contents']
 
     
     creator = SelfInspectingCoder(
         name="Self Inspecting Coder",  
         llm_config=GPT4_CONFIG, 
-        inputs=input_contents,
-        input_samples=input_sample_contents,
-        output_samples=output_sample_contents,
-        images=image_contents
+        inputs=inputs,
+        input_samples=input_samples,
+        output_samples=output_samples,
+        images=images
     )
 
     user_proxy = autogen.UserProxyAgent(
@@ -43,12 +44,12 @@ def main():
         is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
         code_execution_config={"use_docker": True, "work_dir": WORKING_DIR, 'timeout':DEFAULT_TIMEOUT },)
 
-    try:
-        start_time = time()
-        user_proxy.initiate_chat(recipient=creator, message=f"""Solve the problem:\n{problem_content}\nSave the genterated code to generated_code.txt""")
-        print(f"Agent exited the excusion, took: {(time()-start_time)/60} min ")
-    except Exception as e:
-        print(f'{e}')
+  
+    start_time = time()
+    chat_res = user_proxy.initiate_chat(recipient=creator, message=f"""Solve the problem:\n{problem_content}\nSave the genterated code to generated_code.txt""")
+    print(f"Agent exited the excusion, took: {(time()-start_time)/60} min ")
+    print(chat_res)
+
 
 
 if __name__ == "__main__":

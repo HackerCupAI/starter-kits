@@ -45,45 +45,6 @@ if ENABLE_LOGGING:
     logger.setLevel(logging.INFO)
 
 
-def solution_validator(solution_function: str, inputs: str, outputs:str) -> str:
-    try:
-        # d = {}
-        # exec(solution_function) in d
-        code_obj = compile(solution_function, "<string>", "exec")
-        import types
-
-        fn = types.FunctionType(code_obj.co_consts[0], globals())
-
-        results = fn(inputs, outputs)
-        return (
-            "All cases passed"
-            if len(results) == 0
-            else f"Failed for cases: {results[0:5]}"
-        )
-    except Exception as e:
-        return f"Error executing solution: {str(e)}"
-
-
-def save_results(solution_function: str, inputs: str) -> None:
-    try:
-        code_obj = compile(solution_function, "<string>", "exec")
-        import types
-        fn = types.FunctionType(code_obj.co_consts[0], globals())
-        results = fn(inputs)
-        with open(f"{WORKING_DIR}\generated_out.txt", "w") as handle:
-            handle.write(results)
-        with open(f"{WORKING_DIR}\generated_code.txt", 'w') as handle:
-            handle.write(solution_function)
-    except Exception as e:
-        print( f"error excuting solution: {str(e)}")
-
-class InputExecutor(CodeExecutor):
-
-    @property
-    def code_extractor(self) -> CodeExtractor:
-        # Extact code from markdown blocks.
-        return MarkdownCodeExtractor()
-
 
 ### STEPS:
 ## PLANNER: tools/ stategies/ chat with critic agent,
@@ -98,7 +59,7 @@ class InputExecutor(CodeExecutor):
 
 
 class SelfInspectingCoder(ConversableAgent):
-    def __init__(self,  images = {}, inputs={}, input_samples={}, output_samples={}, **kwargs):
+    def __init__(self, n_iters=3, images = {}, inputs={}, input_samples={}, output_samples={}, **kwargs):
         """
         Initializes a SelfInspectingCoder instance.
 
@@ -111,6 +72,7 @@ class SelfInspectingCoder(ConversableAgent):
         self.register_reply(
             [Agent, None], reply_func=SelfInspectingCoder._reply_user, position=0
         )
+        self._n_iters = n_iters
         self._input_samples = input_samples
         self._output_samples = output_samples        
         self._images = images
@@ -137,7 +99,7 @@ class SelfInspectingCoder(ConversableAgent):
             max_consecutive_auto_reply=10,
             system_message="""Project Manager. You are facilitating a team problem solving which first starts with Image_explainer; then decide to call the next agents until the problem is solved. This may need a feedback loop to work.
             Tell all other agent the code is in <txt generated_code.txt>
-            Once the code passes tests, call Writer to write the code into <txt  generated_code.txt> before exiting  """,
+            Once the task is complete, exit.  """,
             is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
             llm_config=self.llm_config,
             code_execution_config=False,
@@ -149,7 +111,9 @@ class SelfInspectingCoder(ConversableAgent):
             name="Image_explainer",
             max_consecutive_auto_reply=2,
             llm_config=VISION_CONFIG,
-            system_message="""Image_explainer. Describe any images in img tags. Remove img tags and replace with corresponding captions. Captions should have as much detail as possible. Return original input content with caption modifications.
+            system_message="""Image_explainer. Describe any images in img tags. Remove img tags and replace with corresponding captions. 
+            Captions should have as much detail as possible. Return original input content with caption modifications.
+            Do not write code or analyize the problem, only explain the images.
             """,
             code_execution_config=False,
         )
@@ -162,7 +126,7 @@ class SelfInspectingCoder(ConversableAgent):
             Analyze elements on the problem. 
             Give a list of Key strategy considerations.
             Provide clearn input and output format specifications. 
-            Use input data, {self._input_samples} and output data {self._output_samples} as your examples.
+            Use input data, {self._input_samples['contents']} and output data {self._output_samples['contents']} as your examples.
             Ensures that the team has a clear understanding of the problem. Do not try to solve the problem.
             """,
             llm_config=GPT4_CONFIG,
@@ -198,66 +162,32 @@ class SelfInspectingCoder(ConversableAgent):
         coder = autogen.AssistantAgent(
             name="Coder",
             llm_config=GPT4_CONFIG,
-            system_message=f"""Coder. Create code in Python based on discussions from Solution Architect and Logic Critic .
-            Make sure your code follows strictly the input and output format specification from Problem_analyst.
-            Must write code to parse inputs in the format specified by Problem_analyst, which might involve type coverstions to get input into right format.
-            Must generate output in the correct format specified Problem_analyst.  
-            Make you your code contains tests using sample input data: {self._input_samples} and sample output data: {self._output_samples}.
-            Write your code into <txt generated_code.txt> and tell the team. Do not excute the code,
+            system_message=f"""Coder. Create Python code based on discussions with the Solution Architect and Logic Critic. 
+            Ensure your code strictly follows the input and output format specifications provided by the Problem Analyst. 
+            Your code should read inputs from a file and generate results in another file. 
+            Allow the caller to specify the locations of these two files. 
+            Test your code with input sample file: {self._input_samples['location']}, compaire your output with example outputs {self._output_samples['contents']}
+            If test passes, run your code with input file :{self._inputs['location']} and save output to generated_output.txt
+            Save your code into generated_code.txt and verify the file is saved correctly then notify the group.
             """,
+            human_input_mode="NEVER",
+            max_consecutive_auto_reply=3,
+            code_execution_config={"work_dir": WORKING_DIR, "use_docker": True,}
+
         ) 
-        coder.update_system_message(
-            "# filename: generated_code.txt" + coder.system_message
-            + "ALWAYS save the current code in `generated_code.txt` file. Tell other agents it is in the generated_code.txt file location. Execute code using sample input provided."
-        )
 
         tester = autogen.AssistantAgent(
             name="Tester",
             llm_config=GPT4_CONFIG,
-            system_message=f"""Tester. Test the code in <txt generated_code.txt> using sample inputs:{self._input_samples} and sample output:{self._output_samples}
-            In addtion, come up with more test cases to cover corner cases and extreme values.
-            Once it passes the test, please run generated code on longer inputs {self._inputs} and save the results
+            system_message=f"""Tester. Test the code generated by Coder and report back to the group. 
+            Make sure to load all required functions before running.
+            Do not fix the code.
             """,
             human_input_mode="NEVER",
-            max_consecutive_auto_reply=0,
-            code_execution_config={"work_dir": WORKING_DIR, "use_docker": True, "timeout":DEFAULT_TIMEOUT},
+            max_consecutive_auto_reply=1,
+            code_execution_config={"work_dir": WORKING_DIR, "use_docker": True},
         )
 
-        tester.register_for_llm(
-            name='test_code',
-            description="Test generated code by running sample inputs and compare results with sample outputs",
-        )(solution_validator)
-
-        tester.register_for_llm(
-            name="save_results",
-            description="Run generated code on longer inputs and save the output to file",
-        )(save_results)
-
-        executor = autogen.AssistantAgent(
-            name="CodeExecutor",
-            llm_config=False,
-            code_execution_config={"executor": InputExecutor()},
-            is_termination_msg=lambda msg: "TERMINATE"
-            in msg.get("content", "").strip().upper(),
-        )
-
-        register_function(
-            save_results,
-            caller=tester,
-            executor=executor,
-            name="save_results",
-            description="Run generated code on longer inputs and save the output to file",
-        )
-
-        register_function(
-            save_results,
-            caller=tester,
-            executor=executor,
-            name="solution_validator",
-            description="Test generated code by running sample inputs and compare results with sample outputs",
-        )
-
-        # 
         ## ref: https://microsoft.github.io/autogen/docs/notebooks/agentchat_groupchat_research
         groupchat = autogen.GroupChat(
             agents=[
@@ -268,7 +198,7 @@ class SelfInspectingCoder(ConversableAgent):
                 logic_critic,
                 coder,
                 tester,
-                executor,
+                # executor,
             ],
             messages=[],
             max_round=12,
@@ -278,13 +208,16 @@ class SelfInspectingCoder(ConversableAgent):
         vision_capability.add_to_agent(group_chat_manager)
 
         # Data flow begins
-        project_manager.initiate_chat(group_chat_manager, message=f"{user_question}")
-        
-        if ENABLE_LOGGING:
-            coder = project_manager._oai_messages[coder][-1]["content"]
-            logger.info( f"sender=coder_repsonse to project_manager: {coder_repsonse}")
-        
-        return True, os.path.join(WORKING_DIR, "agent_code.txt")
+        attempt = 0
+        while attempt < self._n_iters:
+            try:
+                chat_res = project_manager.initiate_chat(group_chat_manager, message=f"{user_question}")
+                return chat_res
+            except Exception as e:
+                logger.error(e)
+                print(e)
+                attempt += 1 
 
+    
 
  
