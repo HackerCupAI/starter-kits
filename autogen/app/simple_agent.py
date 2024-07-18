@@ -56,7 +56,6 @@ class SelfInspectingCoder(ConversableAgent):
             print(error_msg)
             if ENABLE_LOGGING:
                 logger.error(error_msg)  # noqa: F821
-            i
             raise AssertionError(error_msg)
         if messages is None:
             messages = self._oai_messages[sender]

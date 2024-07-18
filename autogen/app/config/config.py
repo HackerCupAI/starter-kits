@@ -63,9 +63,7 @@ vision_model_config = setup_vision_llm(VISION_OAI_API_TYPE)
 
 
 
-VISION_CONFIG = {"config_list": [vision_model_config],"temperature": 0.5,  "max_tokens": DEFAULT_MAX_TOKENS, "timeout": DEFAULT_TIMEOUT}
+VISION_CONFIG = {"config_list": [vision_model_config],"temperature": 0.5,  "max_tokens": DEFAULT_MAX_TOKENS, "timeout": DEFAULT_TIMEOUT, "cache_seed": 42,}
 
-GPT4_CONFIG ={"config_list": [model_config], "timeout": DEFAULT_TIMEOUT, "temperature": 0.5}
-
-# print(f"GPT4_CONFIG: {GPT4_CONFIG}")
+GPT4_CONFIG ={"config_list": [model_config], "timeout": DEFAULT_TIMEOUT, "temperature": 0.5, "cache_seed": 42}
 

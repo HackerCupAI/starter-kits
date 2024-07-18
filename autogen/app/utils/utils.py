@@ -44,11 +44,10 @@ def get_file_contents(directory_path, filename):
     return content
 
 def add_samples(markdown_content, directory_path, input_sample_file, output_sample_file):
-    markdown_content+=f"\nInput samples: <txt {directory_path}/{input_sample_file}>\nOut samples: <txt {directory_path}/{output_sample_file}" 
+    markdown_content+=f"\nInput samples: {{<txt {directory_path}/{input_sample_file}>}}\nOut samples: {{<txt {directory_path}/{output_sample_file}}}" 
     return markdown_content
 
 
-#WY:TODO: Do not need to read the file content, simply denote file location
 def get_problemset(directory_path):
     problemset_files = get_problem_files(directory_path)
     (problem_statement, img_matches) = parse_markdown(directory_path, problemset_files)
@@ -57,7 +56,6 @@ def get_problemset(directory_path):
     input_samples  = get_file_contents(directory_path,problemset_files["input_samples"])
     output_samples = get_file_contents(directory_path, problemset_files['output_samples'])
     problem_statement = add_samples(problem_statement,directory_path,  problemset_files['input_samples'],problemset_files['output_samples'] )
-    print(problem_statement)
     return ({"type": "problem", "contents": problem_statement, "location": problemset_files["problem"]}, 
             {"type": "input", "contents": input, "location": problemset_files["input"]},
             {"type": "output", "contents": output, "location": problemset_files["output"]},
