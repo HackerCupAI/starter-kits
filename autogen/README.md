@@ -90,4 +90,4 @@ For the competition, only inputs will be provided.
 
 
 ### Responsible AI
-This code is built on top of the [AutoGen](https://github.com/microsoft/autogen) library and adopts the same Responsible AI practices as AutoGen. For more information, please check out AutoGen's [TRANSPARENCY_FAQS](https://github.com/microsoft/autogen/blob/main/TRANSPARENCY_FAQS.md)
+This code is built on top of the [AutoGen](https://github.com/microsoft/autogen) library and inherits the same capabilities and limitations as AutoGen. For more information, please check out AutoGen's [TRANSPARENCY_FAQS](https://github.com/microsoft/autogen/blob/main/TRANSPARENCY_FAQS.md)
