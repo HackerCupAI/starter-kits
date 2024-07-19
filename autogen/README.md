@@ -68,7 +68,7 @@ For each problem, you'll find these files:
 For full dataset, please visit the [Hackercup HuggingFace dataset](https://huggingface.co/datasets/hackercupai/hackercup)
 
 
-## Agent flow
+## Agent Flow
 
 The sequence of agents are as followed: 
 - Program manager
@@ -89,5 +89,5 @@ Creates `generated_code.txt` which will takes input filepath and typically gener
 For the competition, only inputs will be provided.
 
 
-### Disclaimers
-This code uses the [AutoGen](https://github.com/microsoft/autogen) library and abides by the same responsibleAI practices as AutoGen. For more information, please check out the [TRANSPARENCY_FAQS](https://github.com/microsoft/autogen/blob/main/TRANSPARENCY_FAQS.md)
+### Responsible AI
+This code is built on top of the [AutoGen](https://github.com/microsoft/autogen) library and adopts the same Responsible AI practices as AutoGen. For more information, please check out AutoGen's [TRANSPARENCY_FAQS](https://github.com/microsoft/autogen/blob/main/TRANSPARENCY_FAQS.md)
