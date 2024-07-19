@@ -3,8 +3,8 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 import logging
 
-from config.config import VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, DEFAULT_TIMEOUT
-from utils.utils import get_problemset
+from config.config import VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, LOGS_DIR, DEFAULT_TIMEOUT
+from utils.utils import get_problemset, mkdirp
 
 import autogen
 from autogen import (
@@ -29,8 +29,13 @@ from autogen.coding import (
 
 from autogen.code_utils import content_str
 
+
 timestamp = time.time()
-logname = f"{WORKING_DIR}/logs/group_agent_{timestamp}.log"
+
+# Ensure the logs directory exists
+mkdirp(LOGS_DIR)
+
+logname = f"{LOGS_DIR}/group_agent_{timestamp}.log"
 
 
 ENABLE_LOGGING = True

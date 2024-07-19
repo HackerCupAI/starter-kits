@@ -1,6 +1,7 @@
 import os
 import base64
 import re
+import pathlib
 
 def get_problem_files(directory):
     problem_output = {}
@@ -63,3 +64,6 @@ def get_problemset(directory_path):
             {"type": "output_samples", "contents": output_samples, 'location':problemset_files['output_samples']},
             {"type": "images", "contents": img_matches}     
             )
+
+def mkdirp(path):
+    pathlib.Path(path).mkdir(parents=True, exist_ok=True)
