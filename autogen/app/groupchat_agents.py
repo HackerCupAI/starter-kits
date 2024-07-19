@@ -21,7 +21,7 @@ LOGS_DIR = f"{BASE_LOGS_DIR}/{time.strftime('%Y%m%d-%H%M%S')}/"
 ENABLE_LOGGING = False
 
 # Create and configure logger
-# NOTE: autogen.runtime_logging seems to crash when using image agent (vision)
+# WARNING: autogen.runtime_logging seems to crash when using image agent (vision), maybe related to  https://github.com/microsoft/autogen/pull/3127
 logger = None
 if ENABLE_LOGGING:
 
@@ -215,7 +215,6 @@ class SelfInspectingCoder(ConversableAgent):
 
         user_response_with_captions = user_question
 
-        # NOTE: autogen.runtime_logging seems to crash when using image agent (vision)
         if ENABLE_LOGGING == False:
             project_manager.send(
                 message=f"Add image captions to the following {user_question}", 
@@ -237,7 +236,6 @@ class SelfInspectingCoder(ConversableAgent):
                 print(e)
             attempt += 1 
 
-        # NOTE: autogen.runtime_logging seems to crash when using image agent (vision)
         if ENABLE_LOGGING:
             autogen.runtime_logging.stop()
         return True, os.path.join(WORKING_DIR, "generated_code.txt")
