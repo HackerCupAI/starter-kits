@@ -33,12 +33,12 @@ docker build -f ./Dockerfile -t autogen_dev_img .
 After image is built, run the docker image with one of the following, replace `<file`>.py and `<path to data dir`>  :
 
 ```bash 
-docker run --env-file ./.env  -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/<file>.py <path to data dir> 
+docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" autogen_dev_img:latest python /home/autogen/autogen/app/<file>.py <path to data dir> 
 ```
 For example,  to solve [2023 DimSum Delivery HackerCank practice problem](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B):
 
 ```bash 
-docker run --env-file ./.env  -it -v $(pwd)/app:/home/autogen/autogen/app autogen_dev_img:latest python /home/autogen/autogen/app/hackercup.py /home/autogen/autogen/app/assets/nim_sum_dim_sum
+docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" autogen_dev_img:latest python /home/autogen/autogen/app/hackercup.py /home/autogen/autogen/app/assets/nim_sum_dim_sum
 ```
 
 - The simple example using multiple agents in a coding scenario, which is a good place to start with AutoGen and coding agents:
