@@ -3,7 +3,7 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 import logging
 
-from config.config import VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, LOGS_DIR, DEFAULT_TIMEOUT
+from config.config import VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, BASE_LOGS_DIR, DEFAULT_TIMEOUT
 from utils.utils import get_problemset, mkdirp
 
 import autogen
@@ -29,25 +29,34 @@ from autogen.coding import (
 
 from autogen.code_utils import content_str
 
-
-timestamp = time.time()
-
-# Ensure the logs directory exists
-mkdirp(LOGS_DIR)
-
-logname = f"{LOGS_DIR}/group_agent_{timestamp}.log"
-
-
+LOGS_DIR = f"{BASE_LOGS_DIR}/{time.strftime('%Y%m%d-%H%M%S')}/"
 ENABLE_LOGGING = True
+
 # Create and configure logger
 logger = None
 if ENABLE_LOGGING:
-    logging.basicConfig(
-        filename=logname, format="%(asctime)s %(message)s", filemode="w"
-    )
+
+    # Ensure the logs directory exists
+    mkdirp(LOGS_DIR)
+
+    # Logs specifically for the app
+    app_log = f"{LOGS_DIR}/app.log"
+
+    # Logs for the agents
+    agents_log = f"{LOGS_DIR}/agents.log"
 
     logger = logging.getLogger("self-inspecting-coder")
     logger.setLevel(logging.INFO)
+
+    # create file handler which logs even debug messages
+    fh = logging.FileHandler(app_log)
+    fh.formatter = logging.Formatter('%(asctime)s %(message)s')
+    fh.mode = 'w'
+    fh.setLevel(logging.DEBUG)
+    logger.addHandler(fh)
+
+    # Start autogen logs
+    logging_session_id = autogen.runtime_logging.start(logger_type="file", config={"filename": agents_log})
 
 
 
@@ -172,7 +181,7 @@ class SelfInspectingCoder(ConversableAgent):
             1. Solve the problem using discussions with the Solution Architect and Logic Critic. 
             Ensure your code strictly follows the input and output format specifications provided by the Problem Analyst.
             The code should read inputs from a file and generate results to another file. Allow the caller to specify the locations of these two files.
-            2.Test your code with input sample file: {self._input_samples['location']}, compaire your output with example outputs {self._output_samples['contents']}
+            2.Test your code with input sample file: {self._input_samples['location']}, compare your output with example outputs {self._output_samples['contents']}
             3.Run your code on input file:{self._inputs['location']} and save output to generated_output.txt
             4.Save your code into generated_code.txt 
             5.Verify your code is saved correctly.
@@ -232,6 +241,8 @@ class SelfInspectingCoder(ConversableAgent):
                 logger.error(e)
                 print(e)
                 attempt += 1 
+
+        autogen.runtime_logging.stop()
 
     
 

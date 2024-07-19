@@ -9,7 +9,7 @@ OIA_API_TYPE = os.environ["OAI_API_TYPE"] if "OAI_API_TYPE" in os.environ else D
 VISION_OAI_API_TYPE = os.environ["VISION_OAI_API_TYPE"] if "VISION_OAI_API_TYPE" in os.environ else DEFAULT_API_TYPE
 
 WORKING_DIR = "/home/autogen/autogen/app"
-LOGS_DIR = f"{WORKING_DIR}/logs"
+BASE_LOGS_DIR = f"{WORKING_DIR}/logs"
 
 
 def check_required_vars(API_TYPE):
