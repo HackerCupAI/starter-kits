@@ -1,11 +1,11 @@
-# HackerCup Code Sample
+# Autogen HackerCup Code Sample
 Recommended tools:
 - Docker
 
 ## Building and Running Docker Image
 
 
-Add a file named `.env` to root with at a minimum the following content:
+Add a file named `.env` inside `/autogen` folder with at a minimum the following content:
 ```bash
 OAI_API_KEY=<oai_api_key> 
 OAI_ORGANIZATION=<oai_org>
@@ -29,6 +29,7 @@ In the root folder run the following to build
 ```bash
 docker build -f ./Dockerfile -t autogen_dev_img .
 ```
+*Note: Once the image is built, no need to rebuild image unless changes are made to `Dockerfile`*
 
 After image is built, run the docker image with one of the following, replace `<file`>.py and `<path to data dir`>  :
 
@@ -47,3 +48,36 @@ docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" auto
 - A more complex agent is defined in `groupchat_agents.py`
 
 More info on Docker installation with autogen:  https://microsoft.github.io/autogen/docs/installation/Docker/
+
+
+## Data Ingest
+Example data is located in [app/assets](./app/assets/) and contain two 2023 HackerRank Problems:
+- [Cheeseburger Corollary 1](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/A1)
+- [DimSum Delivery](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B)
+
+The current implementation will solve Cheeseburger Corollary 1 but fails to arrive at the desired soltuion for DimSum Delivery.
+For each problem, you'll find these files:
+
+* `<problem_name>.md`: The problem statement formatted in Markdown
+* `<problem_name>.in`: The full input file
+* `<problem_name>.out`: The full output file
+  * Note that some problems accept multiple possible outputs, in which case the full output file is simply an example of an output that would be accepted
+* `<problem_name>_sample_input.txt`: The sample input provided by the problem statement
+* `<problem_name>_sample_output.txt`: The sample output provided by the problem statement
+
+For full dataset, please visit the [Hackercup HuggingFace dataset](https://huggingface.co/datasets/hackercupai/hackercup)
+
+
+## Agent flow
+
+The sequence of agents are as followed: 
+- Program manager
+    - initiates and manages conversations
+- Image explainer
+    - creates captions for any images in the problem
+- Group Manager
+    - Problem analyst: define the objective and scope problem
+    - Solution architect: create feasible solution 
+    - Logic critic: verify solution created by Solution architect 
+    - Coder: implement solution with code
+    - Code critic: validate solution

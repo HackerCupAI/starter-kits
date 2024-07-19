@@ -1,38 +1,27 @@
-import os
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 import logging
-
-from config.config import VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, BASE_LOGS_DIR, DEFAULT_TIMEOUT
-from utils.utils import get_problemset, mkdirp
+import os
+from config.config import VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, BASE_LOGS_DIR
+from utils.utils import mkdirp
 
 import autogen
 from autogen import (
     Agent,
     AssistantAgent,
     ConversableAgent,
-    UserProxyAgent,
-    register_function,
+    GroupChat,
+    GroupChatManager,
+    UserProxyAgent
 )
 from autogen.agentchat.contrib.capabilities.vision_capability import VisionCapability
-from autogen.agentchat.contrib.img_utils import get_pil_image, pil_to_data_uri
-from autogen.agentchat.contrib.multimodal_conversable_agent import (
-    MultimodalConversableAgent,
-)
-from autogen.coding import (
-    CodeBlock,
-    CodeExecutor,
-    CodeExtractor,
-    CodeResult,
-    MarkdownCodeExtractor,
-)
 
-from autogen.code_utils import content_str
+
 
 LOGS_DIR = f"{BASE_LOGS_DIR}/{time.strftime('%Y%m%d-%H%M%S')}/"
-ENABLE_LOGGING = True
+ENABLE_LOGGING = False
 
 # Create and configure logger
+# NOTE: autogen.runtime_logging seems to crash when using image agent (vision)
 logger = None
 if ENABLE_LOGGING:
 
@@ -55,21 +44,10 @@ if ENABLE_LOGGING:
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
-    # Start autogen logs
+    # Start autogen logs 
     logging_session_id = autogen.runtime_logging.start(logger_type="file", config={"filename": agents_log})
 
 
-
-### STEPS:
-## PLANNER: tools/ stategies/ chat with critic agent,
-## satsify initial prompt and strategy
-## once solution go to coder if needed
-## CODER: compile code, test with inputs /output and if not, go back to planning agent
-
-## limit loop--> max 2 iterations
-## sampling --> multiple test solutions
-
-## make sure works with sample of input
 
 
 class SelfInspectingCoder(ConversableAgent):
@@ -77,7 +55,8 @@ class SelfInspectingCoder(ConversableAgent):
         """
         Initializes a SelfInspectingCoder instance.
 
-        This agent facilitates solving coding tasks through a collaborative effort among its child agents: project_manager, coder, and critics.
+        This agent facilitates solving coding tasks through a collaborative effort among its child agents: 
+        Project Manager, Image Explainer, Problem Analyst, Solution Architect, Logic Critic, Coder, Code Critic.
 
         Parameters:
             - **kwargs: keyword arguments for the parent AssistantAgent.
@@ -86,7 +65,9 @@ class SelfInspectingCoder(ConversableAgent):
         self.register_reply(
             [Agent, None], reply_func=SelfInspectingCoder._reply_user, position=0
         )
+        # define number of attempts
         self._n_iters = n_iters
+        # supporting data
         self._input_samples = input_samples
         self._output_samples = output_samples        
         self._images = images
@@ -104,18 +85,17 @@ class SelfInspectingCoder(ConversableAgent):
 
         user_question = messages[-1]["content"]
 
-        vision_capability = VisionCapability(lmm_config=VISION_CONFIG)
 
         ### Define the agents
-        project_manager = AssistantAgent(
+        project_manager = UserProxyAgent(
             name="Project_Manager",
-            human_input_mode="NEVER",
             max_consecutive_auto_reply=10,
             system_message="""Project Manager. You are facilitating a team problem solving which first starts with Image_explainer; then decide to call the next agents until the problem is solved. This may need a feedback loop to work.
             Tell all other agent the code is in <txt generated_code.txt>
-            Once the task is complete, reply with TERMINATE
+            Once code passes validation or fails twice, reply with TERMINATE
             """,
             is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
+            human_input_mode="TERMINATE",
             llm_config=self.llm_config,
             code_execution_config=False,
         )
@@ -126,7 +106,7 @@ class SelfInspectingCoder(ConversableAgent):
             name="Image_explainer",
             max_consecutive_auto_reply=2,
             llm_config=VISION_CONFIG,
-            system_message="""Image_explainer. Describe any images in img tags. Remove img tags and replace with corresponding captions. 
+            system_message="""Image Explainer. Describe any images in <img > tags. Remove img tags and replace with corresponding captions. Do not remove <txt > tags.
             Captions should have as much detail as possible. Return original input content with caption modifications.
             Do not write code or analyize the problem, only explain the images.
             """,
@@ -135,7 +115,7 @@ class SelfInspectingCoder(ConversableAgent):
 
         problem_analyst = AssistantAgent(
             name="Problem_analyst",
-            system_message=f"""Problem Definer. 
+            system_message=f"""Problem Analyst. 
             Focuses on understanding the problem statement.
             Rephrase the problem statement into a precise goal. Reduce the problem into factual statements. List Assumptions, constraints and simplify win conditions. 
             Analyze elements on the problem. 
@@ -174,10 +154,10 @@ class SelfInspectingCoder(ConversableAgent):
             llm_config=GPT4_CONFIG,
         )
 
-        coder = autogen.AssistantAgent(
+        coder = AssistantAgent(
             name="Coder",
             llm_config=GPT4_CONFIG,
-            system_message=f"""Coder, you are an expert in writing Python code. You must write 1 program and do all the following steps:
+            system_message=f"""Coder. you are an expert in writing Python code. You must write 1 program and do all the following steps:
             1. Solve the problem using discussions with the Solution Architect and Logic Critic. 
             Ensure your code strictly follows the input and output format specifications provided by the Problem Analyst.
             The code should read inputs from a file and generate results to another file. Allow the caller to specify the locations of these two files.
@@ -193,9 +173,9 @@ class SelfInspectingCoder(ConversableAgent):
 
         ) 
 
-        code_critic = autogen.AssistantAgent(
+        code_critic = AssistantAgent(
             name="Code_critic",
-            system_message=f"""Code_critic. Criticize the proposed code solution to the given problem. 
+            system_message=f"""Code Critic. Criticize the proposed code solution to the given problem. 
             Find bugs and issues that might not otherwise thrown interpreter errors.
             Your output must be in the format below:
             Reasoning: 
@@ -206,7 +186,9 @@ class SelfInspectingCoder(ConversableAgent):
             then propose how this code can be modified so that it meets the guidelines in "Suggestion". 
             Your suggestion should be succinct. Do not include the modified code, just describe how the code should be changed. 
             Finally, "Verdict" should be either NO_ISSUES if you think the code is verifiably successful at solving the 
-            original task or FAIL otherwise if there are suggestions.""",
+            original task or FAIL otherwise if there are suggestions.
+            If code fails tests twice,  reply with TERMINATE. 
+            """,
             llm_config=GPT4_CONFIG,
             human_input_mode="NEVER",
             max_consecutive_auto_reply=2,
@@ -214,10 +196,9 @@ class SelfInspectingCoder(ConversableAgent):
         )
 
         ## ref: https://microsoft.github.io/autogen/docs/notebooks/agentchat_groupchat_research
-        groupchat = autogen.GroupChat(
+        groupchat = GroupChat(
             agents=[
                 project_manager,
-                image_agent,
                 problem_analyst,
                 solution_architect, 
                 logic_critic,
@@ -225,24 +206,41 @@ class SelfInspectingCoder(ConversableAgent):
                 code_critic,
             ],
             messages=[],
-            max_round=12,
+            max_round=8,
         )
 
-        group_chat_manager = autogen.GroupChatManager( groupchat=groupchat, llm_config=GPT4_CONFIG)
-        vision_capability.add_to_agent(group_chat_manager)
+        group_chat_manager = GroupChatManager( groupchat=groupchat, llm_config=GPT4_CONFIG)
+        ## if using image_agent inside group_chat_manager, use  vision_capability.add_to_agent(group_chat_manager)
+        vision_capability.add_to_agent(image_agent)
 
+        user_response_with_captions = user_question
+
+        # NOTE: autogen.runtime_logging seems to crash when using image agent (vision)
+        if ENABLE_LOGGING == False:
+            project_manager.send(
+                message=f"Add image captions to the following {user_question}", 
+                recipient=image_agent,
+                request_reply=True,
+            )
+            user_response_with_captions = project_manager._oai_messages[image_agent][-1]["content"]
         # Data flow begins
         attempt = 0
         while attempt < self._n_iters:
             try:
-                chat_res = project_manager.initiate_chat(group_chat_manager, message=f"{user_question}")
-                return chat_res
+                project_manager.initiate_chat(group_chat_manager, message=f"{user_response_with_captions}")
+                last_response = project_manager._oai_messages[group_chat_manager][-1]["content"]
+                if last_response.find("NO_ISSUES") >= 0:
+                    break
             except Exception as e:
-                logger.error(e)
+                if ENABLE_LOGGING:
+                    logger.error(e)
                 print(e)
-                attempt += 1 
+            attempt += 1 
 
-        autogen.runtime_logging.stop()
+        # NOTE: autogen.runtime_logging seems to crash when using image agent (vision)
+        if ENABLE_LOGGING:
+            autogen.runtime_logging.stop()
+        return True, os.path.join(WORKING_DIR, "generated_code.txt")
 
     
 

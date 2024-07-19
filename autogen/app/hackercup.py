@@ -1,8 +1,8 @@
 from groupchat_agents import SelfInspectingCoder
-from config.config import  GPT4_CONFIG, WORKING_DIR,DEFAULT_TIMEOUT
+from config.config import  GPT4_CONFIG
 from utils.utils import get_problemset
 import argparse
-import autogen
+from autogen import UserProxyAgent
 from time import time 
 
 
@@ -17,17 +17,11 @@ def main():
 
 
     #NOTE, this is the data dir "/home/autogen/autogen/app/assets/nim_sum_dim_sum"
-    # Get problem/input/output from assets/practice_problem
     (problem_statement, inputs, outputs, input_samples, output_samples, images) = get_problemset(data_dir)  
     
     problem_content = problem_statement["contents"]
-    print (problem_content)
-    # image_contents = images['contents']
-    # input_contents = inputs['contents']
-    # input_sample_contents = input_samples['contents']
-    # output_sample_contents = output_samples['contents']
-
     
+    # Groupchat agents 
     creator = SelfInspectingCoder(
         name="Self Inspecting Coder",  
         llm_config=GPT4_CONFIG, 
@@ -37,7 +31,7 @@ def main():
         images=images
     )
 
-    user_proxy = autogen.UserProxyAgent(
+    user_proxy = UserProxyAgent(
         name="User_proxy",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=0,
@@ -47,9 +41,8 @@ def main():
 
   
     start_time = time()
-    chat_res = user_proxy.initiate_chat(recipient=creator, message=f"""solve the problem:\n{problem_content}""")
+    user_proxy.initiate_chat(recipient=creator, message=f"""solve the problem:\n{problem_content}""")
     print(f"Agent exited the excusion, took: {(time()-start_time)/60} min ")
-    print(chat_res)
 
 
 

@@ -17,9 +17,8 @@ from autogen import Agent, AssistantAgent, ConversableAgent, UserProxyAgent
 from autogen.agentchat.contrib.capabilities.vision_capability import VisionCapability
 from autogen.agentchat.contrib.img_utils import get_pil_image, pil_to_data_uri
 from autogen.agentchat.contrib.multimodal_conversable_agent import MultimodalConversableAgent
-from autogen.code_utils import content_str
 
-ENABLE_LOGGING = True
+ENABLE_LOGGING = False
 working_dir = "/home/autogen/autogen/app"
 timestamp = time.time()
 logname = f"{working_dir}/logs/{timestamp}_simple_log.log"
@@ -35,10 +34,10 @@ if ENABLE_LOGGING:
     logger.setLevel(logging.DEBUG)
 
 
-class SelfInspectingCoder(ConversableAgent):
+class SimpleSelfInspectingCoder(ConversableAgent):
     def __init__(self, n_iters = 3, **kwargs):
         """
-        Initializes a SelfInspectingCoder instance.
+        Initializes a SimpleSelfInspectingCoder instance.
 
         This agent facilitates solving coding tasks through a collaborative effort among its child agents: commander, coder, and critics.
 
@@ -47,7 +46,7 @@ class SelfInspectingCoder(ConversableAgent):
             - **kwargs: keyword arguments for the parent AssistantAgent.
         """
         super().__init__(**kwargs)
-        self.register_reply([Agent, None], reply_func=SelfInspectingCoder._reply_user, position=0)
+        self.register_reply([Agent, None], reply_func=SimpleSelfInspectingCoder._reply_user, position=0)
         self._n_iters = n_iters
 
     def _reply_user(self, messages=None, sender=None, config=None):
@@ -114,9 +113,7 @@ class SelfInspectingCoder(ConversableAgent):
         if ENABLE_LOGGING:
             coder_repsonse = commander._oai_messages[coder][-1]["content"]
             logger.info( f"sender=coder_repsonse to commander: {coder_repsonse}")
-        
-        # txt = open(os.path.join(working_dir, "code.txt"))
-        
+                
 
         for i in range(self._n_iters):
             commander.send(
@@ -147,9 +144,9 @@ class SelfInspectingCoder(ConversableAgent):
 
 
 
-creator = SelfInspectingCoder(name="Self Inspecting Coder", llm_config=GPT4_CONFIG)
+creator = SimpleSelfInspectingCoder(name="Self Inspecting Coder", llm_config=GPT4_CONFIG)
 
-user_proxy = autogen.UserProxyAgent(
+user_proxy = UserProxyAgent(
     name="User", human_input_mode="NEVER", max_consecutive_auto_reply=0, code_execution_config={
         "use_docker": True
     },  

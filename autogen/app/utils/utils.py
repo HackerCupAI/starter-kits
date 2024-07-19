@@ -45,15 +45,14 @@ def get_file_contents(filename):
     return content
 
 def add_samples(markdown_content, input_sample_file, output_sample_file):
-    markdown_content+=f"\nInput samples: {{<txt {input_sample_file}>}}\nOutput samples: {{<txt {output_sample_file}}}" 
+    markdown_content+=f"\nInput samples: {{<txt {input_sample_file}>}}\nOutput samples: {{<txt {output_sample_file} >}}" 
     return markdown_content
 
 
 def get_problemset(directory_path):
     problemset_files = get_problem_files(directory_path)
     (problem_statement, img_matches) = parse_markdown(directory_path, problemset_files)
-    # input = get_file_contents(problemset_files["input"])
-    # output = get_file_contents(problemset_files["output"])
+
     input_samples  = get_file_contents(problemset_files["input_samples"])
     output_samples = get_file_contents( problemset_files['output_samples'])
     problem_statement = add_samples( problem_statement, problemset_files['input_samples'],problemset_files['output_samples'] )
