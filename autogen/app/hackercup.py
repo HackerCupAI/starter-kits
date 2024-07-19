@@ -42,11 +42,12 @@ def main():
         human_input_mode="NEVER",
         max_consecutive_auto_reply=0,
         is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
-        code_execution_config={"use_docker": True, "work_dir": WORKING_DIR, 'timeout':DEFAULT_TIMEOUT },)
+        code_execution_config= None #{"use_docker": True, "work_dir": WORKING_DIR },
+        )
 
   
     start_time = time()
-    chat_res = user_proxy.initiate_chat(recipient=creator, message=f"""Solve the problem:\n{problem_content}\nSave the genterated code to generated_code.txt""")
+    chat_res = user_proxy.initiate_chat(recipient=creator, message=f"""solve the problem:\n{problem_content}""")
     print(f"Agent exited the excusion, took: {(time()-start_time)/60} min ")
     print(chat_res)
 
