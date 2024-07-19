@@ -1,4 +1,4 @@
-# Autogen HackerCup Code Sample
+# AutoGen HackerCup Code Sample
 Recommended tools:
 - Docker
 
@@ -47,7 +47,7 @@ docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" auto
 
 - A more complex agent is defined in `groupchat_agents.py`
 
-More info on Docker installation with autogen:  https://microsoft.github.io/autogen/docs/installation/Docker/
+More info on Docker installation with AutoGen:  https://microsoft.github.io/autogen/docs/installation/Docker/
 
 
 ## Data Ingest
@@ -88,3 +88,6 @@ Creates `generated_code.txt` which will takes input filepath and typically gener
 
 For the competition, only inputs will be provided.
 
+
+### Disclaimers
+This code uses the [AutoGen](https://github.com/microsoft/autogen) library and abides by the same responsibleAI practices as AutoGen. For more information, please check out the [TRANSPARENCY_FAQS](https://github.com/microsoft/autogen/blob/main/TRANSPARENCY_FAQS.md)
