@@ -80,4 +80,11 @@ The sequence of agents are as followed:
     - Solution architect: create feasible solution 
     - Logic critic: verify solution created by Solution architect 
     - Coder: implement solution with code
-    - Code critic: validate solution
+    - Code critic: examines solution, note this does not check outputs currently
+
+
+## Output
+Creates `generated_code.txt` which will takes input filepath and typically generates and file outputs. These outputs can later be validated.
+
+For the competition, only inputs will be provided.
+

@@ -206,7 +206,7 @@ class SelfInspectingCoder(ConversableAgent):
                 code_critic,
             ],
             messages=[],
-            max_round=8,
+            max_round=12,
         )
 
         group_chat_manager = GroupChatManager( groupchat=groupchat, llm_config=GPT4_CONFIG)
