@@ -1,3 +1,6 @@
+#agent generated
+generated_*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -68,8 +71,15 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+tmp_code*.py
+
 # Sphinx documentation
 docs/_build/
+
+# ignore log dir
+logs/ 
+# ignore output
+code.txt
 
 # PyBuilder
 .pybuilder/
@@ -122,13 +132,14 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+.env*
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
 
 # Spyder project settings
 .spyderproject
