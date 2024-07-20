@@ -1,6 +1,6 @@
 ## Starter kits
 
-We've provided a few starter kits for you to modify and copy paste
+We've provided a few starter kits for you to modify and copy paste. Additional info about
 
 We've provided all historical Hacker Cup problems in a single dataset on HuggingFace: https://huggingface.co/datasets/hackercupai/hackercup
 
