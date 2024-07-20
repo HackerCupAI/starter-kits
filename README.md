@@ -1,11 +1,12 @@
 ## Starter kits
 
-We've provided a few starter kits for you to modify and copy paste. Additional info about
+We've provided a few starter kits for you to modify and copy paste. Additional info about each kit is available in their respective folders
 
 We've provided all historical Hacker Cup problems in a single dataset on HuggingFace: https://huggingface.co/datasets/hackercupai/hackercup
 
 ## Using open models
 1. CodeLlama in [sample_data_solver](sample_data_solver) with the sample input/output pairs only passed in the prompt
+2. Finetuning a pretrained causal language model, e.g., CodeLlama, on the Hackercup dataset, using either a language modeling or Seq2Seq objective.
 
 # Using closed models
 1. [autogen](autogen/) which is a programming framework for agentic AI https://microsoft.github.io/autogen/

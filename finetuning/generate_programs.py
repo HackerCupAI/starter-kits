@@ -164,7 +164,8 @@ class DataTrainingArguments:
     )
 
     text_cols: str = field(
-        default="statement,sample_input,sample_output,code",
+        # default="statement,sample_input,sample_output,code",
+        default="sample_input,sample_output,code",
         metadata={
             "help": "The columns in the dataset to use for text generation tasks.",
         },
@@ -199,62 +200,71 @@ class ProgramGenArguments:
         default=1,
         metadata={"help": "The number of programs to generate per problem."},
     )
+    max_code_gen_examples: Optional[int] = field(
+        default=5,
+        metadata={"help": "The maximum number of code prompts to generate per problem."},
+    )
 
 
-def format_example(examples, text_cols, max_sample_pairs=5, max_sample_length=100, include_output=True, language="python"):
+def format_example(examples, text_cols, max_sample_pairs=5, max_sample_length=100, include_output=True, language=""):
     inputs = []
     ids = []
+    # import pdb;pdb.set_trace()
     for i in range(len(examples['name'])):
-        input = "### Problem: "
-        if 'name' in text_cols:
-            input += f"{examples['name'][i]}\n"
-        if 'statement' in text_cols:
-            input += f"{examples['statement'][i]}\n"
-        if "sample_input" in text_cols and "sample_output" in text_cols:
+        input = "### Problem:\n"
+        if 'name' in text_cols and examples['name'][i]:
+            input += f"Name: {examples['name'][i]}\n"
+        if 'statement' in text_cols and examples['statement'][i]:
+            input += f"Statement: {examples['statement'][i]}\n"
+        if "sample_input" in text_cols and "sample_output" in text_cols and examples['sample_input'][i] and examples['sample_output'][i]:
             num_samples = 0
             for i, o in enumerate(zip(examples['sample_input'][i], examples['sample_output'][i])):
-                sample_str = f"Example: f(\"{i}\") = \"{o}\"\n"
+                sample_str = f"Expected behavior: f({i})\n    {o}\n"
                 if len(sample_str) > max_sample_length:
                     continue
                 input += sample_str
                 num_samples += 1
                 if num_samples == max_sample_pairs:
                     break
-        input += f"Write a {language} function that takes a single argument and returns the correct output for the examples given.\n"
-        input += "\n### Answer: \n"
+        input += f"Write a {language + ' ' if language else ''}function that takes a single argument and returns the correct output for the examples given.\n"
+        input += f"### {language + ' ' if language else ''}Code: \n"
         if include_output:
             input += examples['code'][i]
         inputs.append(input)
-        ids.append(f"{examples['year'][i]}/{examples['round'][i]}{examples['name'][i]}")
+        ids.append(f"{examples['year'][i]}/{examples['round'][i]}/{examples['name'][i]}")
     return inputs, ids
 
 
 def write_programs(
         prompts, names, pipeline, tokenizer,
-        max_new_tokens, max_time, num_gens, 
-        language="python", programs_path="programs"
+        max_new_tokens, max_time, num_gens_per_prompt=1, 
+        language="Python", programs_path="programs", max_code_gen_examples=5, 
     ):
     python_prefix = "def f(a):\n"
     prefix = ""
-    for name, prompt in zip(names, prompts):
-        if language == "python":
+    for i, (name, prompt) in enumerate(zip(names, prompts)):
+        if i >= max_code_gen_examples:
+            break
+        if language == "Python":
             prefix = python_prefix
         prompt = f"{prompt}\n{prefix}" if prefix else prompt
+        print(prompt)
         seqs = pipeline(
             prompt,
             do_sample=True,
             temperature=0.1,
-            num_return_sequences=num_gens,
+            num_return_sequences=num_gens_per_prompt,
             eos_token_id=tokenizer.eos_token_id,
             max_new_tokens=max_new_tokens,
             tokenizer=tokenizer,
-            # stop_strings=["def "],  # stop if second func started
+            stop_strings=["def "],  # stop if second func started
             max_time=max_time,  # seconds
+            return_full_text=False,
         )
         full_results = [seq["generated_text"] for seq in seqs]
 
         for num, full_result in enumerate(full_results):
-            result = prefix + full_result
+            result = prefix + full_result.split("def ", 1)[0]
             p_program = f"{programs_path}/{name}/{str(num)}.py"
             p_program = Path(p_program)
             p_program.parent.mkdir(parents=True, exist_ok=True)
@@ -292,30 +302,48 @@ def evaluate_programs(names, programs_path="programs", dataset_path=DATASET_PATH
         best_score = -1
         p_in = f"{dataset_path}/{name}.in"
         p_out = f"{dataset_path}/{name}.out"
+        p_sample_in = f"{dataset_path}/{name}_sample_input.txt"
+        p_sample_out = f"{dataset_path}/{name}_sample_output.txt"
         with open(p_out, "r") as f_out:
             out = f_out.readlines()
+        with open(p_sample_out, "r") as f_sample_out:
+            sample_out = f_sample_out.readlines()
         for p_program in Path(programs_path).glob(f"{name}/**/*.py"):
             p_program = str(p_program)
-            p_program_out = f"{programs_path}/{name}.out"
-            run_str = f"python {p_program} < {p_in} > {p_program_out}"
+            p_program_sample_out = f"{programs_path}/{p_program}_sample.out"
+            run_str = f"python {p_program} < {p_sample_in} > {p_program_sample_out}"
             # print(run_str)
             subprocess.run(run_str, shell=True)
 
-            with open(p_program_out, "r") as f_program_out:
-                program_out = f_program_out.readlines()
+            with open(p_program_sample_out, "r") as f_program_sample_out:
+                program_out = f_program_sample_out.readlines()
             if len(program_out) == 0:
                 continue
-            assert(len(program_out) == len(out))
+            assert(len(program_out) == len(sample_out))
 
             good = 0
-            for i in range(len(out)):
-                if program_out[i] == out[i]:
+            for i in range(len(sample_out)):
+                if program_out[i] == sample_out[i]:
                     good += 1
     
-            if good / len(out) > best_score:
+            if good / len(sample_out) > best_score:
                 best_program = p_program
-                best_score = good / len(out)
-        results[name] = best_score
+                best_score = good / len(sample_out)
+        p_program_out = f"{programs_path}/{p_program}.out"
+        run_str = f"python {p_program} < {p_in} > {p_program_out}"
+        subprocess.run(run_str, shell=True)
+
+        with open(p_program_out, "r") as f_program_out:
+            program_out = f_program_out.readlines()
+        if len(program_out) == 0:
+            continue
+        assert(len(program_out) == len(out))
+
+        good = 0
+        for i in range(len(out)):
+            if program_out[i] == out[i]:
+                good += 1
+        results[name] = good / len(out)
 
 
     print("| Problem | Score |")
@@ -359,8 +387,6 @@ def load_hf_model(model_args):
 def load_hf_data(
     data_args, model_args, training_args, tokenizer, config
 ):
-
-    # tokenizer.add_special_tokens({'pad_token': '[PAD]'})
     if data_args.dataset_name is not None:
         raw_datasets = load_dataset(
             data_args.dataset_name,
@@ -612,17 +638,18 @@ def main():
     pipeline = transformers.pipeline(
         "text-generation",
         model=model,
+        tokenizer=tokenizer,
         torch_dtype=torch.float16,
         device_map="auto",
     )
     
     hackercupai_ds = load_dataset("hackercupai/hackercup", cache_dir="datasets")['full']
 
-    prompts, names = format_example(hackercupai_ds, text_cols=data_args.text_cols)
+    prompts, names = format_example(hackercupai_ds, text_cols=data_args.text_cols, include_output=False, language="Python")
     write_programs(
         prompts, names, pipeline, tokenizer, 
         max_time=pg_args.max_time, max_new_tokens=pg_args.max_new_tokens,
-        num_gens=pg_args.num_gens,
+        num_gens_per_prompt=pg_args.num_gens, max_code_gen_examples=pg_args.max_code_gen_examples,
     )
     evaluate_programs(names)
 
