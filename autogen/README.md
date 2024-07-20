@@ -21,6 +21,8 @@ VISION_OAI_BASE_URL=<oia_url> #* optional
 VISION_OAI_API_VERSION=<oia_version> # *optional*
 VISION_OAI_API_TYPE=<oai_type> # *optional* (default "openai")
 ```
+Image agent (vision capability) is enabled if `VISION_OAI_API_KEY` is provided.
+
 see [LLM Config](https://microsoft.github.io/autogen/docs/topics/llm_configuration/) for more info.
 
 Running a py script  will throw an error without required envs. Check [Config](./app/config/config.py) for more configuration options.
@@ -90,4 +92,4 @@ For the competition, only inputs will be provided.
 
 
 ### Responsible AI
-This code is built on top of the [AutoGen](https://github.com/microsoft/autogen) library and adopts the same Responsible AI practices as AutoGen. For more information, please check out AutoGen's [TRANSPARENCY_FAQS](https://github.com/microsoft/autogen/blob/main/TRANSPARENCY_FAQS.md)
+This code is built on top of the [AutoGen](https://github.com/microsoft/autogen) library and inherits the same capabilities and limitations as AutoGen. For more information, please check out AutoGen's [TRANSPARENCY_FAQS](https://github.com/microsoft/autogen/blob/main/TRANSPARENCY_FAQS.md)
