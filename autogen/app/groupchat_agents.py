@@ -1,7 +1,7 @@
 import time
 import logging
 import os
-from config.config import VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, BASE_LOGS_DIR
+from config.config import VISION_API_ENABLED, VISION_CONFIG, GPT4_CONFIG, WORKING_DIR, BASE_LOGS_DIR
 from utils.utils import mkdirp
 
 import autogen
@@ -99,19 +99,6 @@ class SelfInspectingCoder(ConversableAgent):
             llm_config=self.llm_config,
             code_execution_config=False,
         )
-        vision_capability = VisionCapability(lmm_config=VISION_CONFIG)
-
-        ## use image_agent to get captions for image tags
-        image_agent = AssistantAgent(
-            name="Image_explainer",
-            max_consecutive_auto_reply=2,
-            llm_config=VISION_CONFIG,
-            system_message="""Image Explainer. Describe any images in <img > tags. Remove img tags and replace with corresponding captions. Do not remove <txt > tags.
-            Captions should have as much detail as possible. Return original input content with caption modifications.
-            Do not write code or analyize the problem, only explain the images.
-            """,
-            code_execution_config=False,
-        )
 
         problem_analyst = AssistantAgent(
             name="Problem_analyst",
@@ -200,7 +187,7 @@ class SelfInspectingCoder(ConversableAgent):
             agents=[
                 project_manager,
                 problem_analyst,
-                solution_architect, 
+                solution_architect,
                 logic_critic,
                 coder,
                 code_critic,
@@ -211,11 +198,24 @@ class SelfInspectingCoder(ConversableAgent):
 
         group_chat_manager = GroupChatManager( groupchat=groupchat, llm_config=GPT4_CONFIG)
         ## if using image_agent inside group_chat_manager, use  vision_capability.add_to_agent(group_chat_manager)
-        vision_capability.add_to_agent(image_agent)
 
         user_response_with_captions = user_question
 
-        if ENABLE_LOGGING == False:
+        if not ENABLE_LOGGING and VISION_API_ENABLED:
+            ## use image_agent to get captions for image tags
+            image_agent = AssistantAgent(
+                name="Image_explainer",
+                max_consecutive_auto_reply=2,
+                llm_config=VISION_CONFIG,
+                system_message="""Image Explainer. Describe any images in <img > tags. Remove img tags and replace with corresponding captions. Do not remove <txt > tags.
+                Captions should have as much detail as possible. Return original input content with caption modifications.
+                Do not write code or analyize the problem, only explain the images.
+                """,
+                code_execution_config=False,
+            )
+            vision_capability = VisionCapability(lmm_config=VISION_CONFIG)
+            vision_capability.add_to_agent(image_agent)
+
             project_manager.send(
                 message=f"Add image captions to the following {user_question}", 
                 recipient=image_agent,
