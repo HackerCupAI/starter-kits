@@ -72,6 +72,8 @@ for case_num in range(1, T + 1):
     print(f"Case #{case_num}: {f(a)}")
 ```
 
+Generated programs are sampled, and are therefore non-deterministic unless a random seed is set.
+
 ## Evaluate programs
 
 For security reasons, you should look at the generated programs before running them.
