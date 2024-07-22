@@ -25,10 +25,13 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 
-MAX_TIME = 600
-MAX_NEW_TOKENS = 500
-DEFAULT_BLOCK_SIZE = 1024
-DATASET_PATH = "/fsx-onellm/margaretli/code/hackercup"
+os.environ["TOKENIZERS_PARALLELISM"] = "false" # required to use subprocess
+
+MAX_TIME = 600              # Maximum time in seconds to generate a program
+MAX_NEW_TOKENS = 500        # Maximum number of tokens to generate
+DEFAULT_BLOCK_SIZE = 1024   # Default block size for LM training
+MAX_CONTEXT_LENGTH = 16384  # Maximum number of tokens in the context
+DATASET_PATH = "/fsx-onellm/margaretli/code/hackercup" # Path to the HackerCup dataset raw files
 
 @dataclass
 class ModelArguments:
@@ -131,26 +134,8 @@ class DataTrainingArguments:
     keep_linebreaks: bool = field(
         default=True, metadata={"help": "Whether to keep line breaks when using TXT files or not."}
     )
-    train_task: str = field(
-        default="seq2seq", # choice=["seq2seq", "lm"]
-    )
-    max_source_length: Optional[int] = field(
-        default=512,
-        metadata={
-            "help": (
-                "The maximum total input sequence length after tokenization. Sequences longer "
-                "than this will be truncated, sequences shorter will be padded."
-            )
-        },
-    )
-    max_target_length: Optional[int] = field(
-        default=128,
-        metadata={
-            "help": (
-                "The maximum total sequence length for target text after tokenization. Sequences longer "
-                "than this will be truncated, sequences shorter will be padded."
-            )
-        },
+    train_obj: str = field(
+        default="lm", metadata={"help": "The objective to train the model on. Only lm and seq2seq are supported."}
     )
     pad_to_max_length: bool = field(
         default=True,
@@ -162,15 +147,16 @@ class DataTrainingArguments:
             )
         },
     )
-
     text_cols: str = field(
         # default="statement,sample_input,sample_output,code",
         default="sample_input,sample_output,code",
         metadata={
             "help": (
-                "The columns in the dataset to use for text generation tasks. "
+                "Comma-separated string of columns in the dataset to use for text generation tasks. "
                 "The hackercup dataset includes the columns: "
                 "name, statement, input, solution, code, output, sample_input, sample_output, images"
+                "Only name, statement, code, sample_input, and sample_output are currently supported. "
+                "Modify this by updating the format_example() function."
             )
         },
     )
@@ -188,6 +174,11 @@ class DataTrainingArguments:
                 assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
         if self.text_cols is not None:
             self.text_cols = self.text_cols.split(",")
+        assert all([
+            col in [
+                "name", "statement", "input", "solution", "code", "output", "sample_input", "sample_output", "images"
+            ] for col in self.text_cols]), "Invalid column name in `text_cols`, must be supported by HackerCup dataset"
+        assert self.train_obj in ["lm", "seq2seq"], "`train_obj` should be either 'lm' or 'seq2seq'."
 
 @dataclass
 class ProgramGenArguments:
@@ -210,6 +201,22 @@ class ProgramGenArguments:
             "Default is set to -1 to generate for all problems."
             )
         },
+    )
+    run_generated_code: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to run the generated code on the sample input."},
+    )
+    only_run_generated_code: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to only run previously generated code on the sample input."},
+    )
+    gen_lang: Optional[str] = field(
+        default="Python",
+        metadata={"help": "The language to generate programs in."},
+    )
+    programs_path: Optional[str] = field(
+        default="programs",
+        metadata={"help": "The directory to save the generated programs."},
     )
 
 def filter_examples(datasets, require_text_cols=None, require_input_output=True, only_use_single_line_samples=True):
@@ -257,7 +264,7 @@ def write_programs(
         max_new_tokens, max_time, num_gens_per_prompt=1, 
         language="Python", programs_path="programs", max_code_gen_examples=-1, 
     ):
-    python_prefix = "def f(a):\n"
+    python_prefix = "def f(a):\n    "
     prefix = ""
     for i, (name, prompt) in enumerate(zip(names, prompts)):
         if max_code_gen_examples > 0 and i >= max_code_gen_examples:
@@ -265,18 +272,19 @@ def write_programs(
         if language == "Python":
             prefix = python_prefix
         prompt = f"{prompt}\n{prefix}" if prefix else prompt
-        seqs = [pipeline(
+        seqs = pipeline(
             prompt,
             do_sample=True,
-            temperature=0.1,
-            num_return_sequences=1,
+            # temperature=0.1,
+            top_p=0.9,
+            num_return_sequences=num_gens_per_prompt,
             eos_token_id=tokenizer.eos_token_id,
             max_new_tokens=max_new_tokens,
             tokenizer=tokenizer,
             # stop_strings=["def "],  # stop if second func started
             max_time=max_time,  # seconds
             return_full_text=False,
-        )[0] for _ in range(num_gens_per_prompt)]
+        )
         full_results = [seq["generated_text"] for seq in seqs]
 
         for num, full_result in enumerate(full_results):
@@ -310,7 +318,9 @@ for case_num in range(1, T + 1):
     print(f"Case #{case_num}: {f(a)}")
 """
 
-def evaluate_programs(names, programs_path="programs", dataset_path=DATASET_PATH):
+def evaluate_programs(
+        names, programs_path="programs", dataset_path=DATASET_PATH, language="Python"
+    ):
     results = {}
     
     for name in names:
@@ -327,9 +337,12 @@ def evaluate_programs(names, programs_path="programs", dataset_path=DATASET_PATH
         for p_program in Path(programs_path).glob(f"{name}/**/*.py"):
             p_program = str(p_program)
             p_program_sample_out = f"{p_program}_sample.out"
-            run_str = f"python {p_program} < {p_sample_in} > {p_program_sample_out}"
-            # print(run_str)
-            subprocess.run(run_str, shell=True)
+            if language == "Python":
+                run_str = f"python -W {p_program} < {p_sample_in} > {p_program_sample_out}"
+            try:
+                subprocess.run(run_str, shell=True, capture_output=True)
+            except subprocess.CalledProcessError as e:
+                continue
             if not os.path.exists(p_program_sample_out):
                 continue
             with open(p_program_sample_out, "r") as f_program_sample_out:
@@ -347,7 +360,8 @@ def evaluate_programs(names, programs_path="programs", dataset_path=DATASET_PATH
                 best_program = p_program
                 best_score = good / len(sample_out)
         p_program_out = f"{p_program}.out"
-        run_str = f"python {p_program} < {p_in} > {p_program_out}"
+        if language == "Python":
+            run_str = f"python {p_program} < {p_in} > {p_program_out}"
         try:
             subprocess.run(run_str, shell=True)
         except:
@@ -481,9 +495,9 @@ def load_hf_data(
         require_input_output=True, only_use_single_line_samples=True
         )
 
-    if data_args.train_task == 'lm': 
+    if data_args.train_obj == 'lm': 
         def tokenize_function(examples):
-            return tokenizer(format_example(examples, data_args.text_cols))[0]
+            return tokenizer(format_example(examples, data_args.text_cols)[0])
         
         tokenized_datasets = raw_datasets.map(
             tokenize_function,
@@ -538,14 +552,22 @@ def train_hf_model(model, tokenizer, model_args, training_args, data_args, train
                 "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
             )
 
-    if data_args.train_task == 'seq2seq':
+    if data_args.train_obj == 'seq2seq':
         tokenizer.padding_side = 'right'
         response_template = "\n### Code:"
-        collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+        collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer, mlm=False)
 
         def format_wrapper(examples):
             inputs, _ = format_example(examples, text_cols=data_args.text_cols)
             return inputs
+
+
+        max_seq_len = (
+            model.config.max_position_embeddings or MAX_CONTEXT_LENGTH
+            if hasattr(model.config, "max_position_embeddings") and 
+            model.config.max_position_embeddings is not None 
+            else MAX_CONTEXT_LENGTH
+        )
 
         trainer = SFTTrainer(
             model,
@@ -555,10 +577,10 @@ def train_hf_model(model, tokenizer, model_args, training_args, data_args, train
             args=training_args,
             formatting_func=format_wrapper,
             data_collator=collator,
-            max_seq_length=16384,
+            max_seq_length=max_seq_len,
         )
 
-    elif data_args.train_task == 'lm':
+    elif data_args.train_obj == 'lm':
         def preprocess_logits_for_metrics(logits, labels):
             if isinstance(logits, tuple):
                 # Depending on the model and config, logits may contain extra tensors,
@@ -576,7 +598,7 @@ def train_hf_model(model, tokenizer, model_args, training_args, data_args, train
             preds = preds[:, :-1].reshape(-1)
             return metric.compute(predictions=preds, references=labels)
 
-        compute_metrics = lm_compute_metrics if data_args.train_task == 'lm' else None
+        compute_metrics = lm_compute_metrics if data_args.train_obj == 'lm' else None
         trainer = Trainer(
             model=model,
             args=training_args,
@@ -641,7 +663,15 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, ProgramGenArguments, TrainingArguments))
     model_args, data_args, pg_args, training_args = parser.parse_args_into_dataclasses()
 
+    if pg_args.only_run_generated_code:
+        hackercupai_ds = load_dataset("hackercupai/hackercup", cache_dir="datasets")['full']
+        hackercupai_ds = filter_examples(hackercupai_ds, require_text_cols=data_args.text_cols, require_input_output=True, only_use_single_line_samples=True)
+        prompts, names = format_example(hackercupai_ds, text_cols=data_args.text_cols, include_output=False, language="Python")
+        evaluate_programs(names, language=pg_args.gen_lang)
+        return
+
     set_seed(training_args.seed)
+
     model, tokenizer, config = load_hf_model(model_args)
 
     train_dataset, eval_dataset = load_hf_data(data_args, model_args, training_args, tokenizer, config)
@@ -664,8 +694,14 @@ def main():
         prompts, names, pipeline, tokenizer, 
         max_time=pg_args.max_time, max_new_tokens=pg_args.max_new_tokens,
         num_gens_per_prompt=pg_args.num_gens, max_code_gen_examples=pg_args.max_code_gen_examples,
+        language=pg_args.gen_lang, programs_path=pg_args.programs_path,
     )
-    evaluate_programs(names)
+    if pg_args.run_generated_code:
+        evaluate_programs(names, language=pg_args.gen_lang)
+    else:
+        print("Generated programs saved to:", pg_args.programs_path)
+        print("Please manually check the generated programs for malicious code and then "
+              "run this script with --only_run_generated_code to evaluate the programs without re-generating them.")
 
 
 if __name__ == "__main__":
