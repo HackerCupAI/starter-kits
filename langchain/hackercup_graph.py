@@ -44,6 +44,10 @@ class GraphState(TypedDict):
     messages: List
     generation: str
     iterations: int
+    input_samples: str
+    output_samples: str
+    solved_samples: bool
+
 
 
 def get_graph_for_problem(llm, max_iterations = 3, flag ='reflect'):
@@ -162,6 +166,24 @@ def get_graph_for_problem(llm, max_iterations = 3, flag ='reflect'):
             "error": "no",
         }
 
+    def check_samples(state: GraphState):
+        print("CHECKING_SAMPLES")
+        code_solution = state["generation"]
+
+        # Get solution components
+        imports = code_solution.imports
+        code = code_solution.code
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You will be provided with three test cases and will determine whether the code provided solves the test cases correctly."
+                        "Only return YES or NO. Do not return any other text otherwise you will fail."),
+            ("human","Are these inputs to the test cases {inputs}, with the correct outputs {outputs} solved by this code {code}")
+        ])
+
+        check_samples_chain = prompt | llm
+        messages = state['messages']
+        next_message = check_samples_chain.invoke({"inputs":state['input_samples'],"outputs":state['output_samples'],"code":imports+"\n"+code})
+        messages.append(next_message)
+        return {"solved_samples":next_message.content == "YES","messages":messages}
 
     def reflect(state: GraphState):
         """
@@ -192,9 +214,9 @@ def get_graph_for_problem(llm, max_iterations = 3, flag ='reflect'):
 
 
     ### Edges
-    def decide_to_finish(state: GraphState):
+    def decide_after_checking(state: GraphState):
         """
-        Determines whether to finish.
+        Determines where to move after checking code.
 
         Args:
             state (dict): The current graph state
@@ -207,13 +229,19 @@ def get_graph_for_problem(llm, max_iterations = 3, flag ='reflect'):
 
         if error == "no" or iterations == max_iterations:
             print("---DECISION: FINISH---")
-            return "end"
+            return "check_samples"
         else:
             print("---DECISION: RE-TRY SOLUTION---")
             if flag == "reflect":
                 return "reflect"
             else:
                 return "generate"
+    
+    def decide_to_finish(state: GraphState):
+        if state['solved_samples'] == True:
+            return "end"
+        else:
+            return "generate"
 
     workflow = StateGraph(GraphState)
 
@@ -221,18 +249,27 @@ def get_graph_for_problem(llm, max_iterations = 3, flag ='reflect'):
     workflow.add_node("generate", generate)  # generation solution
     workflow.add_node("check_code", code_check)  # check code
     workflow.add_node("reflect", reflect)  # reflect
+    workflow.add_node("check_samples",check_samples) # check samples
     # Build graph
     workflow.add_edge(START,"generate")
     workflow.add_edge("generate", "check_code")
     workflow.add_conditional_edges(
         "check_code",
-        decide_to_finish,
+        decide_after_checking,
         {
-            "end": END,
+            "check_samples": "check_samples",
             "reflect": "reflect",
             "generate": "generate",
         },
     )
     workflow.add_edge("reflect", "generate")
+    workflow.add_conditional_edges(
+        "check_samples",
+        decide_to_finish,
+        {
+            "end":END,
+            "generate": "generate"
+        }
+    )
     app = workflow.compile()
     return app
