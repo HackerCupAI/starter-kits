@@ -14,7 +14,6 @@ import transformers
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
-    DataCollatorForSeq2Seq,
     AutoTokenizer,
     HfArgumentParser,
     Trainer,
@@ -26,8 +25,9 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 
-MAX_TIME = 120
+MAX_TIME = 600
 MAX_NEW_TOKENS = 500
+DEFAULT_BLOCK_SIZE = 1024
 DATASET_PATH = "/fsx-onellm/margaretli/code/hackercup"
 
 @dataclass
@@ -37,8 +37,8 @@ class ModelArguments:
     """
 
     model_name_or_path: Optional[str] = field(
-        default="codellama/CodeLlama-7b-Python-hf",
-        # default="gpt2",
+        # default="codellama/CodeLlama-7b-Python-hf",
+        default="gpt2",
         metadata={
             "help": (
                 "The model checkpoint for weights initialization. Don't set if you want to train a model from scratch."
@@ -113,7 +113,7 @@ class DataTrainingArguments:
         },
     )
     block_size: Optional[int] = field(
-        default=None,
+        default=DEFAULT_BLOCK_SIZE,
         metadata={
             "help": (
                 "Optional input sequence length after tokenization. "
@@ -167,10 +167,13 @@ class DataTrainingArguments:
         # default="statement,sample_input,sample_output,code",
         default="sample_input,sample_output,code",
         metadata={
-            "help": "The columns in the dataset to use for text generation tasks.",
+            "help": (
+                "The columns in the dataset to use for text generation tasks. "
+                "The hackercup dataset includes the columns: "
+                "name, statement, input, solution, code, output, sample_input, sample_output, images"
+            )
         },
     )
-    # dict_keys(['name', 'statement', 'input', 'solution', 'code', 'output', 'sample_input', 'sample_output', 'images'])
 
     def __post_init__(self):
 
@@ -198,35 +201,49 @@ class ProgramGenArguments:
     )
     num_gens: Optional[int] = field(
         default=1,
-        metadata={"help": "The number of programs to generate per problem."},
+        metadata={"help": "The number of programs to generate per HackerCup problem."},
     )
     max_code_gen_examples: Optional[int] = field(
-        default=5,
-        metadata={"help": "The maximum number of code prompts to generate per problem."},
+        default=-1,
+        metadata={"help": (
+            "The maximum number of HackerCup problems to generate solutions for. "
+            "Default is set to -1 to generate for all problems."
+            )
+        },
     )
+
+def filter_examples(datasets, require_text_cols=None, require_input_output=True, only_use_single_line_samples=True):
+    if require_text_cols:
+        datasets = datasets.filter(lambda example: all([example[col] for col in require_text_cols]))
+    if require_input_output:
+        datasets = datasets.filter(lambda example: all([example[col] for col in ["input", "output"]]))
+    if only_use_single_line_samples:
+        datasets = datasets.filter(lambda example: int(example['input'].split('\n')[0]) == len(example['output'].strip().split('\n')))
+        datasets = datasets.filter(lambda example: int(example['input'].split('\n')[0]) == len(example['input'].strip().split('\n')) - 1)
+    return datasets
 
 
 def format_example(examples, text_cols, max_sample_pairs=5, max_sample_length=100, include_output=True, language=""):
     inputs = []
     ids = []
-    # import pdb;pdb.set_trace()
     for i in range(len(examples['name'])):
         input = "### Problem:\n"
         if 'name' in text_cols and examples['name'][i]:
-            input += f"Name: {examples['name'][i]}\n"
+            input += f"## Name: {examples['name'][i]}\n"
         if 'statement' in text_cols and examples['statement'][i]:
-            input += f"Statement: {examples['statement'][i]}\n"
+            statement_str = examples['statement'][i].replace('\n', '\n## ')
+            input += f"## Statement: {statement_str}\n"
         if "sample_input" in text_cols and "sample_output" in text_cols and examples['sample_input'][i] and examples['sample_output'][i]:
             num_samples = 0
-            for i, o in enumerate(zip(examples['sample_input'][i], examples['sample_output'][i])):
-                sample_str = f"Expected behavior: f({i})\n    {o}\n"
+            for inp, outp in enumerate(zip(examples['sample_input'][i].split('\n')[1:], examples['sample_output'][i].split('\n'))):
+                sample_str = f"## Expected behavior: f({inp})\n##    {outp}\n"
                 if len(sample_str) > max_sample_length:
                     continue
                 input += sample_str
                 num_samples += 1
                 if num_samples == max_sample_pairs:
                     break
-        input += f"Write a {language + ' ' if language else ''}function that takes a single argument and returns the correct output for the examples given.\n"
+        input += f"## Write a {language + ' ' if language else ''}function that takes a single argument and returns the correct output for the examples given.\n"
         input += f"### {language + ' ' if language else ''}Code: \n"
         if include_output:
             input += examples['code'][i]
@@ -238,33 +255,32 @@ def format_example(examples, text_cols, max_sample_pairs=5, max_sample_length=10
 def write_programs(
         prompts, names, pipeline, tokenizer,
         max_new_tokens, max_time, num_gens_per_prompt=1, 
-        language="Python", programs_path="programs", max_code_gen_examples=5, 
+        language="Python", programs_path="programs", max_code_gen_examples=-1, 
     ):
     python_prefix = "def f(a):\n"
     prefix = ""
     for i, (name, prompt) in enumerate(zip(names, prompts)):
-        if i >= max_code_gen_examples:
+        if max_code_gen_examples > 0 and i >= max_code_gen_examples:
             break
         if language == "Python":
             prefix = python_prefix
         prompt = f"{prompt}\n{prefix}" if prefix else prompt
-        print(prompt)
-        seqs = pipeline(
+        seqs = [pipeline(
             prompt,
             do_sample=True,
             temperature=0.1,
-            num_return_sequences=num_gens_per_prompt,
+            num_return_sequences=1,
             eos_token_id=tokenizer.eos_token_id,
             max_new_tokens=max_new_tokens,
             tokenizer=tokenizer,
-            stop_strings=["def "],  # stop if second func started
+            # stop_strings=["def "],  # stop if second func started
             max_time=max_time,  # seconds
             return_full_text=False,
-        )
+        )[0] for _ in range(num_gens_per_prompt)]
         full_results = [seq["generated_text"] for seq in seqs]
 
         for num, full_result in enumerate(full_results):
-            result = prefix + full_result.split("def ", 1)[0]
+            result = prefix + full_result.split("def ", 1)[0] # only take the first function -- hacky
             p_program = f"{programs_path}/{name}/{str(num)}.py"
             p_program = Path(p_program)
             p_program.parent.mkdir(parents=True, exist_ok=True)
@@ -310,11 +326,12 @@ def evaluate_programs(names, programs_path="programs", dataset_path=DATASET_PATH
             sample_out = f_sample_out.readlines()
         for p_program in Path(programs_path).glob(f"{name}/**/*.py"):
             p_program = str(p_program)
-            p_program_sample_out = f"{programs_path}/{p_program}_sample.out"
+            p_program_sample_out = f"{p_program}_sample.out"
             run_str = f"python {p_program} < {p_sample_in} > {p_program_sample_out}"
             # print(run_str)
             subprocess.run(run_str, shell=True)
-
+            if not os.path.exists(p_program_sample_out):
+                continue
             with open(p_program_sample_out, "r") as f_program_sample_out:
                 program_out = f_program_sample_out.readlines()
             if len(program_out) == 0:
@@ -329,9 +346,12 @@ def evaluate_programs(names, programs_path="programs", dataset_path=DATASET_PATH
             if good / len(sample_out) > best_score:
                 best_program = p_program
                 best_score = good / len(sample_out)
-        p_program_out = f"{programs_path}/{p_program}.out"
+        p_program_out = f"{p_program}.out"
         run_str = f"python {p_program} < {p_in} > {p_program_out}"
-        subprocess.run(run_str, shell=True)
+        try:
+            subprocess.run(run_str, shell=True)
+        except:
+            continue
 
         with open(p_program_out, "r") as f_program_out:
             program_out = f_program_out.readlines()
@@ -348,7 +368,7 @@ def evaluate_programs(names, programs_path="programs", dataset_path=DATASET_PATH
 
     print("| Problem | Score |")
     print("| ------- | ----- |")
-    for name in results.keys().sort():
+    for name in sorted(list(results.keys())):
         print(f"| {name} | {results[name]} |")
     return results
 
@@ -385,7 +405,7 @@ def load_hf_model(model_args):
     return model, tokenizer, config
 
 def load_hf_data(
-    data_args, model_args, training_args, tokenizer, config
+    data_args, model_args, training_args, tokenizer, config, require_text_cols=["solution"],
 ):
     if data_args.dataset_name is not None:
         raw_datasets = load_dataset(
@@ -456,6 +476,10 @@ def load_hf_data(
     raw_datasets = raw_datasets.filter(
         lambda example: all([example[c] is not None for c in data_args.text_cols])
     )
+    raw_datasets = filter_examples(
+        raw_datasets, require_text_cols=data_args.text_cols, 
+        require_input_output=True, only_use_single_line_samples=True
+        )
 
     if data_args.train_task == 'lm': 
         def tokenize_function(examples):
@@ -467,16 +491,7 @@ def load_hf_data(
             remove_columns=column_names,
         )
         
-        max_pos_embeddings = config.max_position_embeddings if config.max_position_embeddings is not None else 1024
-        if data_args.block_size is None:
-            block_size = tokenizer.model_max_length
-            if block_size > max_pos_embeddings:
-                if max_pos_embeddings > 0:
-                    block_size = min(1024, max_pos_embeddings)
-                else:
-                    block_size = 1024
-        else:
-            block_size = min(data_args.block_size, tokenizer.model_max_length)
+        block_size = min(data_args.block_size, tokenizer.model_max_length, config.max_position_embeddings or DEFAULT_BLOCK_SIZE)
 
         # Main data processing function that will concatenate all texts from our dataset and generate chunks of block_size.
         def group_texts(examples):
@@ -490,7 +505,6 @@ def load_hf_data(
             result["labels"] = result["input_ids"].copy()
             return result
 
-        import pdb;pdb.set_trace()
         raw_datasets = tokenized_datasets.map(group_texts, batched=True)
 
     train_dataset, eval_dataset = None, None
@@ -524,10 +538,9 @@ def train_hf_model(model, tokenizer, model_args, training_args, data_args, train
                 "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
             )
 
-    if data_args.train_task == 'io2':
+    if data_args.train_task == 'seq2seq':
         tokenizer.padding_side = 'right'
-        response_template = "\n### Answer:"
-        # response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)[2:] 
+        response_template = "\n### Code:"
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
 
         def format_wrapper(examples):
@@ -544,6 +557,7 @@ def train_hf_model(model, tokenizer, model_args, training_args, data_args, train
             data_collator=collator,
             max_seq_length=16384,
         )
+
     elif data_args.train_task == 'lm':
         def preprocess_logits_for_metrics(logits, labels):
             if isinstance(logits, tuple):
@@ -644,7 +658,7 @@ def main():
     )
     
     hackercupai_ds = load_dataset("hackercupai/hackercup", cache_dir="datasets")['full']
-
+    hackercupai_ds = filter_examples(hackercupai_ds, require_text_cols=data_args.text_cols, require_input_output=True, only_use_single_line_samples=True)
     prompts, names = format_example(hackercupai_ds, text_cols=data_args.text_cols, include_output=False, language="Python")
     write_programs(
         prompts, names, pipeline, tokenizer, 

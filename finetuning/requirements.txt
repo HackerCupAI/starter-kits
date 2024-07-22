@@ -1,3 +1,4 @@
 git+https://github.com/huggingface/transformers.git@main
 accelerate
 huggingface_hub
+scikit-learn
