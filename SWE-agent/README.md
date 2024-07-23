@@ -12,7 +12,7 @@ But here's some helpful tips we found when getting this baseline to work
 
 ## Solution
 
-On https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B - the agent got about 1/3 of the test cases right
+On https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B - the agent got about 1/3 of the test cases right which is not great! Since the choices are yes/no a random gues would be a better strategy.
 
 ```python
 import sys
@@ -60,3 +60,8 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+## Improving the baseline
+
+* Update the demonstration trajectory: https://princeton-nlp.github.io/SWE-agent/config/demonstrations/
+* Update the "tips" and directions sections here: https://github.com/princeton-nlp/SWE-agent/blob/main/config/coding_challenge.yaml
