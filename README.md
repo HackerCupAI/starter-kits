@@ -10,7 +10,7 @@ We've provided all historical Hacker Cup problems in a single dataset on Hugging
 
 # Using closed models
 1. [autogen](autogen/) which is a programming framework for agentic AI https://microsoft.github.io/autogen/
-2. [SWE Agent][swe-agent/] starter kit which solves leetcode style problems https://princeton-nlp.github.io/SWE-agent/usage/coding_challenges/
+2. [SWE-agent](SWE-agent/) starter kit which solves leetcode style problems https://princeton-nlp.github.io/SWE-agent/usage/coding_challenges/
 
 While the Hacker Cup competition is proceeding, you will copy paste the problems from browser (need to be available as README) and then provide them to your model and copy paste out the answer back into the Hacker Cup UI.
 
