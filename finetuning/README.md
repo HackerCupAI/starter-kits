@@ -42,7 +42,9 @@ Command-line arguments controlling some data and model hyperparameters are defin
 -  `--text_columns`, the set of columns included in the input to the model.
 -  `--num_gens`, the number of generations to sample for each problem.
 -  `--max_code_gen_examples`, the number of HackerCup problems to sample code generations for.
--  `--model_name_or_path`, the HuggingFace model to use. Some models have context length constraints, which will result in errors unless you modify this code to shorten the inputs.
+-  `--model_name_or_path`, the HuggingFace model to use. 
+
+Beware that the problem statements in the HackerCup dataset are quite long. For many models using fixed-max-length positional embeddings (this excludes, e.g., RoPE), including the problem statement as-is will significantly exceed the context length.
 
 ### To finetune a pretrained model on HackerCup dataset and evaluate as above
 
@@ -57,12 +59,13 @@ all tokens. See the next section if you want a loss only on the code solution.
 does not come with a precomputed train/val/test split, so one is created in the code. This may be non-deterministic.
 
 Additionally, because we are using the same HackerCup dataset for training and the final code generation eval,
-we *are* training on the test set in this demo, albeit in a more roundabout way, since the metrics are not directly computed on the code generations. To adapt this code to tune on other tasks instead, see below
+we *are* training on the test set in this demo, albeit in a more roundabout way, since the metrics are not directly computed on the code generations. To adapt this code to tune on other tasks instead, see below.
 
 Command-line arguments controlling some data and model hyperparameters are defined at the top of
 `train_and_eval.py`. We also use the HuggingFace `transformer.TrainingArguments` hyperparameters. A 
 [list of options](https://huggingface.co/docs/transformers/en/main_classes/trainer#transformers.TrainingArguments)
 including train epochs, batch size, and learning rate can be found in the transformers documentation.
+
 
 ### To train only on code (or another part of the problems)
 

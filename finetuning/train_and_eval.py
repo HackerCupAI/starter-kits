@@ -40,8 +40,8 @@ class ModelArguments:
     """
 
     model_name_or_path: Optional[str] = field(
-        # default="codellama/CodeLlama-7b-Python-hf",
-        default="gpt2",
+        default="codellama/CodeLlama-7b-Python-hf",
+        # default="gpt2", # used for debugging
         metadata={
             "help": (
                 "The model checkpoint for weights initialization. Don't set if you want to train a model from scratch."
@@ -148,8 +148,8 @@ class DataTrainingArguments:
         },
     )
     text_cols: str = field(
-        # default="statement,sample_input,sample_output,code",
-        default="sample_input,sample_output,code",
+        default="statement,sample_input,sample_output,code",
+        # default="sample_input,sample_output,code",
         metadata={
             "help": (
                 "Comma-separated string of columns in the dataset to use for text generation tasks. "
@@ -242,8 +242,12 @@ def format_example(examples, text_cols, max_sample_pairs=5, max_sample_length=10
             input += f"## Statement: {statement_str}\n"
         if "sample_input" in text_cols and "sample_output" in text_cols and examples['sample_input'][i] and examples['sample_output'][i]:
             num_samples = 0
-            for inp, outp in enumerate(zip(examples['sample_input'][i].split('\n')[1:], examples['sample_output'][i].split('\n'))):
-                sample_str = f"## Expected behavior: f({inp})\n##    {outp}\n"
+            input += "### Examples:\n"
+            for inp, outp in zip(examples['sample_input'][i].split('\n')[1:], examples['sample_output'][i].split('\n')):
+                if not inp and not outp:
+                    continue
+                output_str = outp.split(":", 1)[1].strip() # remove the "Case #n: " prefix
+                sample_str = f"##    >>> f({inp})\n##    {output_str}\n"
                 if len(sample_str) > max_sample_length:
                     continue
                 input += sample_str
@@ -338,12 +342,13 @@ def evaluate_programs(
             p_program = str(p_program)
             p_program_sample_out = f"{p_program}_sample.out"
             if language == "Python":
-                run_str = f"python -W {p_program} < {p_sample_in} > {p_program_sample_out}"
+                run_str = f"python {p_program} < {p_sample_in} > {p_program_sample_out}"
             try:
-                subprocess.run(run_str, shell=True, capture_output=True)
-            except subprocess.CalledProcessError as e:
+                subprocess.run(run_str, shell=True, capture_output=True, check=False)
+            except:
                 continue
             if not os.path.exists(p_program_sample_out):
+                print(f"{p_program} did not generate any output, continuing to the next program.")
                 continue
             with open(p_program_sample_out, "r") as f_program_sample_out:
                 program_out = f_program_sample_out.readlines()
@@ -359,12 +364,18 @@ def evaluate_programs(
             if good / len(sample_out) > best_score:
                 best_program = p_program
                 best_score = good / len(sample_out)
+        if not best_program:
+            print(f"No valid code solutions for problem {name}.")
+            results[name] = 0 / len(out)
+            continue
         p_program_out = f"{p_program}.out"
         if language == "Python":
             run_str = f"python {p_program} < {p_in} > {p_program_out}"
         try:
-            subprocess.run(run_str, shell=True)
+            subprocess.run(run_str, shell=True, capture_output=True, check=False)
         except:
+            print(f"No valid code solutions for problem {name}.")
+            results[name] = 0 / len(out)
             continue
 
         with open(p_program_out, "r") as f_program_out:
