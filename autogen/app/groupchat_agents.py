@@ -51,7 +51,7 @@ if ENABLE_LOGGING:
 
 
 class SelfInspectingCoder(ConversableAgent):
-    def __init__(self, n_iters=3, images = {}, inputs={}, input_samples={}, output_samples={}, **kwargs):
+    def __init__(self, n_iters=3, images = {}, inputs={}, input_samples={}, output_samples={}, problem_id="", **kwargs):
         """
         Initializes a SelfInspectingCoder instance.
 
@@ -72,6 +72,7 @@ class SelfInspectingCoder(ConversableAgent):
         self._output_samples = output_samples        
         self._images = images
         self._inputs = inputs
+        self._problem_id = problem_id
 
     def _reply_user(self, messages=None, sender=None, config=None):
         if all((messages is None, sender is None)):
@@ -90,14 +91,15 @@ class SelfInspectingCoder(ConversableAgent):
         project_manager = UserProxyAgent(
             name="Project_Manager",
             max_consecutive_auto_reply=10,
-            system_message="""Project Manager. You are facilitating a team problem solving which first starts with Image_explainer; then decide to call the next agents until the problem is solved. This may need a feedback loop to work.
-            Tell all other agent the code is in <txt generated_code.txt>
+            system_message=f"""Project Manager. You are facilitating a team problem solving which first starts with Image_explainer; then decide to call the next agents until the problem is solved. This may need a feedback loop to work.
+            Tell all other agent the code is in <txt {self._problem_id}_generated_code.txt>
             Once code passes validation or fails twice, reply with TERMINATE
             """,
             is_termination_msg=lambda x: x.get("content", "").rstrip().endswith("TERMINATE"),
-            human_input_mode="TERMINATE",
+            # human_input_mode="TERMINATE",
             llm_config=self.llm_config,
             code_execution_config=False,
+            human_input_mode="NEVER",
         )
 
         problem_analyst = AssistantAgent(
@@ -149,8 +151,8 @@ class SelfInspectingCoder(ConversableAgent):
             Ensure your code strictly follows the input and output format specifications provided by the Problem Analyst.
             The code should read inputs from a file and generate results to another file. Allow the caller to specify the locations of these two files.
             2.Test your code with input sample file: {self._input_samples['location']}, compare your output with example outputs {self._output_samples['contents']}
-            3.Run your code on input file:{self._inputs['location']} and save output to generated_output.txt
-            4.Save your code into generated_code.txt 
+            3.Run your code on input file:{self._inputs['location']} and save output to {self._problem_id}_generated_output.txt
+            4.Save your code into {self._problem_id}_generated_code.txt 
             5.Verify your code is saved correctly.
             Once you complete these steps, notify the group.
             """,
@@ -238,7 +240,7 @@ class SelfInspectingCoder(ConversableAgent):
 
         if ENABLE_LOGGING:
             autogen.runtime_logging.stop()
-        return True, os.path.join(WORKING_DIR, "generated_code.txt")
+        return True, os.path.join(WORKING_DIR, f"{self._problem_id}_generated_code.txt")
 
     
 

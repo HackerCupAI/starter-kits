@@ -1,6 +1,10 @@
 #agent generated
 generated_*
 
+*_generated_code.txt
+*_generated_output.txt
+autogen/app/*.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -8,6 +12,10 @@ __pycache__/
 
 # C extensions
 *.so
+
+
+
+
 
 # Distribution / packaging
 .Python

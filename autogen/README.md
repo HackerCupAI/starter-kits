@@ -33,19 +33,15 @@ docker build -f ./Dockerfile -t autogen_dev_img .
 ```
 *Note: Once the image is built, no need to rebuild image unless changes are made to `Dockerfile`*
 
-After image is built, run the docker image with one of the following, replace `<file`>.py and `<path to data dir`>  :
+After image is built, run the docker image with either simple or complex example. Running the sample HackerRank data :
 
 ```bash 
-docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" autogen_dev_img:latest python /home/autogen/autogen/app/<file>.py <path to data dir> 
-```
-For example,  to solve [2023 DimSum Delivery HackerCank practice problem](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B):
-
-```bash 
-docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" autogen_dev_img:latest python /home/autogen/autogen/app/hackercup.py /home/autogen/autogen/app/assets/nim_sum_dim_sum
+docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" -v "$(pwd)/../assets/practice:/home/autogen/autogen/app/assets" autogen_dev_img:latest python /home/autogen/autogen/app/hackercup.py /home/autogen/autogen/app/assets/
 ```
 
 - The simple example using multiple agents in a coding scenario, which is a good place to start with AutoGen and coding agents:
-`simple_agent.py`
+
+`docker run --env-file ./.env  -it -v "$(pwd)/app:/home/autogen/autogen/app" autogen_dev_img:latest python /home/autogen/autogen/app/simple.py`
 
 - A more complex agent is defined in `groupchat_agents.py`
 
@@ -53,11 +49,14 @@ More info on Docker installation with AutoGen:  https://microsoft.github.io/auto
 
 
 ## Data Ingest
-Example data is located in [app/assets](./app/assets/) and contain two 2023 HackerRank Problems:
+Example data is located in [/assets](../assets/) and contain two 2023 HackerRank Problems:
 - [Cheeseburger Corollary 1](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/A1)
+- [Cheeseburger Corollary 2](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/A2)
 - [DimSum Delivery](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/B)
+- [Two Apples a Day](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/C)
+- [Road To Nutella](https://www.facebook.com/codingcompetitions/hacker-cup/2023/practice-round/problems/D)
 
-The current implementation will solve Cheeseburger Corollary 1 but fails to arrive at the desired soltuion for DimSum Delivery.
+The current implementation will solve Cheeseburger Corollary 1 but may fail on harder problems.
 For each problem, you'll find these files:
 
 * `<problem_name>.md`: The problem statement formatted in Markdown

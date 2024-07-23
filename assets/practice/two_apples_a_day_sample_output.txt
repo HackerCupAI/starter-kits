@@ -1,0 +1,7 @@
+Case #1: 4
+Case #2: 7
+Case #3: 1
+Case #4: -1
+Case #5: 6
+Case #6: -1
+Case #7: 1000000002
