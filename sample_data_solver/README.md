@@ -27,6 +27,10 @@ This will download raw inputs and outputs files from the "hackercupai/hackercup"
 into a `dataset` directory. This command currently throws an error, but still downloads all of 
 the files correctly.
 
+Alternatively, you can run `python download_dataset.py`. This will also download inputs and outputs from
+"hackercupai/hackercup" Hugging Face dataset into `dataset` directory. Currently the script
+errors due to issues with the HuggingFace upload but will likely be fixed soon.
+
 ## Generate programs
 
 Run `python generate_programs.py`. This will generate programs and save them to `programs`
@@ -67,11 +71,11 @@ for case_num in range(1, T + 1):
     if len(a) == 1:
         a = a[0]
     else:
-        # Simplify when first item is number of strings in list
         if isinstance(a[0], int) and isinstance(a[1], str):
             if (len(a) - 1) == a[0]:
                 a = a[1:]
     print(f"Case #{case_num}: {f(a)}")
+
 ```
 
 Generated programs are sampled, and are therefore non-deterministic unless a random seed is set. 
@@ -92,9 +96,9 @@ most likely because `MAX_NEW_TOKENS` or `MAX_TIME` were too low):
 | Problem | Score |
 | ------- | ----- |
 | 2011/quals/double_squares | 2/63 |
-| 2011/quals/studious_student | 21/39 |
 | 2011/quals/peg_game | FAIL |
-| 2011/round1a/wine_tasting | 2/50 |
-| 2011/round1b/diminishing_circle | 0/60 |
-| 2011/round1b/slot_machine_hacker | FAIL |
-| 2011/round1c/n_factorful | 15/50 |
+| 2011/quals/studious_student | 21/39 |
+| 2011/round1a/wine_tasting | FAIL |
+| 2011/round1b/diminishing_circle | 3/60 |
+| 2011/round1b/slot_machine_hacker | 0/55 |
+| 2011/round1c/n_factorful | 1/50 |
