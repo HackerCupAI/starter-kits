@@ -11,8 +11,9 @@ We've provided all historical Hacker Cup problems in a single dataset on Hugging
 # Using closed models
 1. [autogen](autogen/) which is a programming framework for agentic AI https://microsoft.github.io/autogen/
 2. [SWE-agent](SWE-agent/) starter kit which solves leetcode style problems https://princeton-nlp.github.io/SWE-agent/usage/coding_challenges/
+3. [langchain](langchain/) starter kit which is a general framework to create LLM applications
 
-While the Hacker Cup competition is proceeding, you will copy paste the problems from browser (need to be available as README) and then provide them to your model and copy paste out the answer back into the Hacker Cup UI.
+While the Hacker Cup competition is proceeding, you will download all problems in a round in a single compressed folder and it's up to you to uncompress it and feed it to your model. Once your model produces the answer which should include both the generated code and an output.txt, you'll submit that code just like a human would on the hacker cup website.
 
 As we're getting ready to announce winners, we'll be going in order from the top ranking winners to the bottom ranking ones
 1. For the open track until we find enough reproducible answers
