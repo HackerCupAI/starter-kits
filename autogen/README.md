@@ -85,7 +85,7 @@ The sequence of agents are as followed:
 
 
 ## Output
-Creates `generated_code.txt` which will takes input filepath and typically generates and file outputs. These outputs can later be validated.
+Creates `<problem_id>_generated_code.txt` which will takes input filepath and typically generates and file outputs. These outputs can later be validated.
 
 For the competition, only inputs will be provided.
 

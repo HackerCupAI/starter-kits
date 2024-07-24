@@ -43,10 +43,6 @@ def get_problem_files(directory):
                 "problem" : content,
                 'input': None,
                 'input_file': None,
-                'solution': None,
-                'solution_file': None,
-                'code': None,
-                'code_file': None,
                 'output': None,
                 'output_file': None,
                 'sample_input': None,
@@ -66,7 +62,6 @@ def get_problem_files(directory):
     for file_path in all_file_paths:
         original_filepath = file_path
         file_path = file_path.replace(directory, "")
-        is_solution = '_sol.' in file_path
         file_path = file_path.replace('_sol.', '.')
         file_type = file_path.split('.')[-1]
         problem_id = (file_path.split('.')[0]).split('/')[-1]
@@ -76,24 +71,15 @@ def get_problem_files(directory):
             all_image_files.append(original_filepath)
         if problem_id in data:
             content = encode_file(original_filepath)
-
             if file_type == 'in':
                 data[problem_id]['input_file'] = original_filepath
                 data[problem_id]['input'] = content
             elif file_type == 'out':
                 data[problem_id]['output_file'] = original_filepath
                 data[problem_id]['output'] = content
-            elif file_type in ['py', 'java', 'cpp']:
-                data[problem_id]['code_file'] = original_filepath
-                data[problem_id]['code'] = content
             elif file_type == 'md':
-              if is_solution:
-                    data[problem_id]['solution_file'] = original_filepath
-                    data[problem_id]['solution'] = content
-              else:
                     data[problem_id]['problem_file'] = original_filepath
                     data[problem_id]['problem'] = content
-
             elif file_type == 'txt':
                 if "sample_input" in file_path:
                     data[problem_id]["sample_input_file"] = original_filepath
@@ -127,12 +113,9 @@ def get_problem_files(directory):
                     md = md.replace(img_id, f"<img {img_file}>")
                 data[key]["problem"] = md
                    
-
     return data
 
-
-
-        
+       
 def get_file_contents(filename):
     content = None
     with open(f"{filename}", "r") as f:
