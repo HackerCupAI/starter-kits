@@ -63,7 +63,6 @@ for case_num in range(1, T + 1):
     if len(a) == 1:
         a = a[0]
     else:
-        # Simplify when first item is number of strings in list
         if isinstance(a[0], int) and isinstance(a[1], str):
             if (len(a) - 1) == a[0]:
                 a = a[1:]
@@ -92,18 +91,18 @@ def process_line(line):
     return a
 
 
-def get_problems_ins_outs():
+def get_sample_ins_outs():
     results = []
 
     # Find problems where each test case
     # is one input line and one output line.
     suitable_problems = []
-    for p_in in Path("dataset").glob("**/*.in"):
+    for p_in in Path("dataset").glob("**/*_sample_input.txt"):
         with open(p_in, "r") as f:
             num_cases = int(f.readline())
             num_lines = len(f.readlines())
 
-        p_out = str(p_in)[:-2] + "out"
+        p_out = str(p_in).replace("input.txt", "output.txt")
         try:
             with open(p_out, "r") as f:
                 num_lines_out = len(f.readlines())
@@ -113,26 +112,22 @@ def get_problems_ins_outs():
             pass
 
     for p_in in suitable_problems:
-        # Assume 5 first cases are sample cases and we can look at output.
-        # In future the dataset should provide correct sample input/output.
-        num_samples = 5
-
         max_line_len = 100
 
         ins = []
         outs = []
         too_large = False
         with open(p_in, "r") as f:
-            _num_cases = int(f.readline())
-            for case_num in range(num_samples):
+            num_cases = int(f.readline())
+            for case_num in range(num_cases):
                 line = f.readline()
                 if len(line) > max_line_len:
                     too_large = True
                 ins.append(process_line(line))
 
-        p_out = str(p_in)[: -len("in")] + "out"
+        p_out = str(p_in).replace("input.txt", "output.txt")
         with open(p_out, "r") as f:
-            for case_num in range(num_samples):
+            for case_num in range(num_cases):
                 line = f.readline()[len("Case #1: ") :]  # Remove Case num prefix
                 outs.append(process_line(line))
 
@@ -143,10 +138,10 @@ def get_problems_ins_outs():
 
 
 def main():
-    data = get_problems_ins_outs()
+    data = get_sample_ins_outs()
     for p_in, ins, outs in data:
         f = generate_func(ins, outs)
-        p_program = "programs/" + str(p_in)[len("dataset/") : -len("in")] + "py"
+        p_program = "programs/" + str(p_in)[len("dataset/") : -len("_sample_input.txt")] + ".py"
         p_program = Path(p_program)
         p_program.parent.mkdir(parents=True, exist_ok=True)
         p_program.write_text(f + template)
