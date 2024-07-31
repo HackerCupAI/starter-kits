@@ -16,33 +16,27 @@ class Problem:
     problem_description: str
     sample_input: str
     sample_output: str
-    input_path: str
+    input_path: Path
+    output_path: Path
     images: list[str]
-    output: Optional[str]
+    
 
     @classmethod
-    def from_folder(cls, folder_path):
-        import os
-        import glob
-
+    def from_folder(cls, folder_path: Path):
         # Find files
-        sample_input = glob.glob(os.path.join(folder_path, '*_samples.in'))[0]
-        sample_output = glob.glob(os.path.join(folder_path, '*_samples.out'))[0]
-        description = glob.glob(os.path.join(folder_path, '*.md'))[0]
+        sample_input = next(folder_path.glob('*_samples.in'))
+        sample_output = next(folder_path.glob('*_samples.out'))
+        description = next(folder_path.glob('*.md'))
         # problem name from the .md file
-        name = Path(description).stem
+        name = description.stem
 
-        input_file = glob.glob(os.path.join(folder_path, '*.in'))
-        input_file = [f for f in input_file if not f.endswith('_samples.in')][0]
-        images = [encode_image(image_path) for image_path in glob.glob(os.path.join(folder_path, '*.jpg'))]
+        input_file = next(f for f in folder_path.glob('*.in') if not f.name.endswith('_samples.in'))
+        images = [encode_image(str(image_path)) for image_path in folder_path.glob('*.jpg')]
 
         # Read file contents
-        with open(sample_input, 'r') as f:
-            sample_input_content = f.read()
-        with open(sample_output, 'r') as f:
-            sample_output_content = f.read()
-        with open(description, 'r') as f:
-            problem_description_content = f.read()
+        sample_input_content = sample_input.read_text()
+        sample_output_content = sample_output.read_text()
+        problem_description_content = description.read_text()
 
         return cls(
             name=name,
@@ -50,8 +44,8 @@ class Problem:
             sample_input=sample_input_content,
             sample_output=sample_output_content,
             input_path=input_file,
+            output_path=input_file.with_suffix('.out'),
             images=images,
-            output=None
         )
     
     def __repr__(self):
@@ -62,6 +56,13 @@ class Problem:
     Input: {self.input_path}
     Images: {len(self.images)} image(s)
 """
+
+def maybe_remove_backticks(solution: str) -> str:
+    if solution.startswith("```python"):
+        solution = solution[len("```python"):]
+    if solution.endswith("```"):
+        solution = solution[:-len("```")]
+    return solution
 
 if __name__ == '__main__':
     sample_path = Path("assets/cheeseburger_corollary_1")

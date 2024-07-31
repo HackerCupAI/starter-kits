@@ -3,7 +3,7 @@ from pathlib import Path
 import openai
 import weave
 
-from utils import Problem
+from utils import Problem, maybe_remove_backticks
 
 client = openai.OpenAI()
 
@@ -17,7 +17,7 @@ def call_model(messages, **kwargs):
     ).choices[0].message.content
 
 @weave.op
-def generate_solution(problem: Problem, system_propmt: str) -> str:
+def generate_solution(problem: Problem, system_propmt: str, prompt_template: str) -> str:
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": [
@@ -26,6 +26,7 @@ def generate_solution(problem: Problem, system_propmt: str) -> str:
                 sample_input=problem.sample_input,
                 sample_output=problem.sample_output,
                 input_path=problem.input_path,
+                output_path=problem.output_path,
             )},
             *[{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}} for img in problem.images]
         ]}
@@ -41,6 +42,9 @@ def generate_solution(problem: Problem, system_propmt: str) -> str:
 
 
     solution = call_model(messages=messages)
+
+    # in case we have ```python stuff...`
+    solution = maybe_remove_backticks(solution)
     print(solution)
     return solution
 
@@ -74,7 +78,7 @@ if __name__=="__main__":
         with open(f"{input_path}", "r") as f:
             input_data = f.read()
         generated_solution = solve(input_data)
-        with open("generated_solution.out", "w") as f:
+        with open(f"{output_path}", "w") as f:
             f.write(generated_solution)
     ```
     """
@@ -85,7 +89,7 @@ if __name__=="__main__":
 
     weave.init("hack-starter")
 
-    solution = generate_solution(problem, system_prompt)
+    solution = generate_solution(problem, system_prompt, prompt_template)
     write_and_run(SAMPLE_PATH / "solution.py", solution)
 
 
