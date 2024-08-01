@@ -20,7 +20,7 @@ def call_model(messages, **kwargs):
     ).choices[0].message.content
 
 @weave.op
-def generate_code(problem: Problem, system_prompt: str, prompt_template: str) -> str:
+def generate_code(problem: Problem, system_prompt: str, prompt_template: str, use_images: bool = False) -> str:
     print(f"Generating code solution for: {problem.name}")
 
     messages = [
@@ -30,10 +30,8 @@ def generate_code(problem: Problem, system_prompt: str, prompt_template: str) ->
                 problem_description=problem.problem_description,
                 sample_input=problem.sample_input,
                 sample_output=problem.sample_output,
-            )},
-            *[{"type": "image_url", 
-               "image_url": {"url": img}} for img in problem.images]
-        ]}
+            )}
+        ] + ([{"type": "image_url", "image_url": {"url": img}} for img in problem.images] if use_images else [])}
     ]
 
     # call model one first time to get the code
@@ -41,6 +39,7 @@ def generate_code(problem: Problem, system_prompt: str, prompt_template: str) ->
     print("Generating initial analysis and solution")
 
     # Let's make a second call to the model to extract the code from the response
+    messages.append({"role": "assistant", "content": out})
     messages.append({"role": "user", "content": [
         {"type": "text", 
          "text": ("Extract the code from the response. reply with the code only. "
@@ -83,6 +82,7 @@ class Args(simple_parsing.Serializable):
     problem_name: str = "cheeseburger_corollary_ch1"
     folder_path: Path = Path("./dataset/2023/practice/")
     log: bool = False
+    use_images: bool = False
 
 if __name__=="__main__":
     args = simple_parsing.parse(Args)
@@ -91,7 +91,7 @@ if __name__=="__main__":
 
     if args.log: weave.init("hack-starter")
 
-    code = generate_code(problem, system_prompt, prompt_template)
+    code = generate_code(problem, system_prompt, prompt_template, use_images=args.use_images)
 
     sample_output = problem.exec(code, input=problem.sample_input)
     sample_matches = check_solution(problem.sample_output, sample_output)
