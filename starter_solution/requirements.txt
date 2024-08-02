@@ -2,3 +2,4 @@ simple_parsing
 openai
 weave
 rich
+tabulate
