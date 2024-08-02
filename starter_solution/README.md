@@ -30,13 +30,13 @@ The `01_one_shot.py` script demonstrates how to use an AI model (GPT-4 in this e
 4. Run the script:
 
 ```bash
-python 01_one_shot.py
+python 01_one_shot.py --problem_name road_to_nutella --folder_path "./dataset/2023/practice/"
 ```
 
 This script will:
 - Load the problem from the specified folder
 - Generate a solution using the AI model
-- Write the solution to a file and run it against the input
+- Check the solution against the input
 
 ## Customization
 
@@ -45,6 +45,16 @@ You can customize the behavior of the solution generator by modifying:
 - The `system_prompt` to change the AI's role and task description
 - The `prompt_template` to alter how the problem is presented to the AI
 - The model used in the `call_model` function (currently set to "gpt-4")
+
+## Weave Logging Support
+
+Debugging can be tricky when interacting with AI models. Weave logging support is provided to help with this.
+
+```bash
+python 01_one_shot.py --problem_name road_to_nutella --folder_path "./dataset/2023/practice/" --weave_log
+```
+
+Check [Weave's documentation](https://wandb.github.io/weave/) for more information on how to use Weave tracing.
 
 ## Note
 
