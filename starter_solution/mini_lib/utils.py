@@ -1,6 +1,12 @@
 import logging
 from typing import Optional
 from rich.logging import RichHandler
+import signal
+from contextlib import contextmanager
+import time
+
+class TimeoutException(Exception):
+    pass
 
 def setup_logger(debug = False, silence_openai = True):
     level = logging.DEBUG if debug else logging.INFO
@@ -39,7 +45,23 @@ def check_solution(expected: str, actual: str) -> dict:
             offending_cases.append((expected_line, actual_line))
     return {"matches": matches, "total": len(expected_lines), "offending_cases": offending_cases}
 
-def run(code: Optional[str] = None, input: Optional[str] = None):
+
+@contextmanager
+def timeout_ctx_mngr(seconds):
+    def timeout_handler(signum, frame):
+        raise TimeoutException("Function call timed out")
+
+    original_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(seconds)
+    
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, original_handler)
+
+
+def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
     logging.info("Running solution synchronously...")
     vars = {}
     try:
@@ -48,8 +70,9 @@ def run(code: Optional[str] = None, input: Optional[str] = None):
         logging.error(f"The generated code is not valid: {code}")
         raise e
     try:
-        fn = vars.get("solve", lambda x: x)
-        return fn(input)
+        with timeout_ctx_mngr(timeout):
+            fn = vars.get("solve", lambda x: x)
+            return fn(input)
     except Exception as e:
         logging.error(f"Error executing code: {e}")
         raise e
