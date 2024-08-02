@@ -54,6 +54,8 @@ Debugging can be tricky when interacting with AI models. Weave logging support i
 python 01_one_shot.py --problem_name road_to_nutella --folder_path "./dataset/2023/practice/" --weave_log
 ```
 
+![Weave Logging](./weave_trace.png)
+
 Check [Weave's documentation](https://wandb.github.io/weave/) for more information on how to use Weave tracing.
 
 ## Note
