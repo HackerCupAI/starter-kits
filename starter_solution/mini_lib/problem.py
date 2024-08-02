@@ -120,7 +120,7 @@ class Problem:
         print(f"Found {len(problems)} problems in folder: {folder_path}")
         return problems
     
-    def exec(self, code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+    def exec(self, code: Optional[str] = None, input: Optional[str] = None, timeout: int = 120):
         print("Running solution synchronously...")
         if code is None:
             code = self.code
@@ -136,7 +136,7 @@ class Problem:
                 print(f"Execution timed out after {timeout} seconds")
                 return None
 
-    async def async_exec(self, code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+    async def async_exec(self, code: Optional[str] = None, input: Optional[str] = None, timeout: int = 120):
         print("Running solution asynchronously...")
         if code is None:
             code = self.code
@@ -158,7 +158,8 @@ class Problem:
     def _exec_in_thread(self, code: str, input: str):
         vars = {}
         exec(code, vars)
-        return vars.get("solve", lambda x: x)(input)
+        fn = vars.get("solve", lambda x: x)
+        return fn(input)
 
     def __repr__(self):
         return f"""Problem: {self.name}
