@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from rich.logging import RichHandler
 
 def setup_logger(debug = False, silence_openai = True):
@@ -38,7 +39,40 @@ def check_solution(expected: str, actual: str) -> dict:
             offending_cases.append((expected_line, actual_line))
     return {"matches": matches, "total": len(expected_lines), "offending_cases": offending_cases}
 
+def exec(code: Optional[str] = None, input: Optional[str] = None):
+    logging.info("Running solution synchronously...")
+    vars = {}
+    try:
+        exec(code, vars)
+    except Exception as e:
+        logging.error(f"The generated code is not valid: {code}")
+        raise e
+    try:
+        fn = vars.get("solve", lambda x: x)
+        return fn(input)
+    except Exception as e:
+        logging.error(f"Error executing code: {e}")
+        raise e
+
 if __name__ == "__main__":
-    matches = check_solution("Case #1: YES\nCase #2: NO\nCase #3: YES", "Case #1: YES\nCase #2: Yes\nCase #3: YES")
-    print(matches)
+    # Test check_solution
+    expected = "Case #1: YES\nCase #2: NO\nCase #3: YES"
+    actual = "Case #1: YES\nCase #2: Yes\nCase #3: YES"
+    result = check_solution(expected, actual)
+    assert result["matches"] == 2, "Expected 2 matches"
+    assert result["total"] == 3, "Expected 3 total lines"
+    assert len(result["offending_cases"]) == 1, "Expected 1 offending case"
+    assert result["offending_cases"][0] == ("Case #2: NO", "Case #2: Yes"), "Unexpected offending case"
+
+    # Test maybe_remove_backticks
+    assert maybe_remove_backticks("print('hello')\n```") == "print('hello')\n", "Failed to remove trailing backticks"
+    assert maybe_remove_backticks("```python\nprint('hello')") == "\nprint('hello')", "Failed to remove leading backticks"
+    assert maybe_remove_backticks("```python\nprint('hello')\n```") == "\nprint('hello')\n", "Failed to remove both leading and trailing backticks"
+
+    # test exec
+    code = "def solve(x):\n    return x + 1"
+    input = "2"
+    result = exec(code, input)
+    assert result == 3, "Expected 3"
+    print("All tests passed!")
 

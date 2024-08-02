@@ -118,26 +118,6 @@ class Problem:
                 print(f"Warning: Couldn't create problem from {problem_name}. Error: {e}")
         logging.info(f"Found {len(problems)} problems in folder: {folder_path}")
         return problems
-    
-    def exec(self, code: Optional[str] = None, input: Optional[str] = None, timeout: int = 10):
-        logging.info("Running solution synchronously...")
-        if code is None:
-            code = self.code
-        if input is None:
-            input = self.input
-
-        vars = {}
-        try:
-            exec(code, vars)
-        except Exception as e:
-            logging.error(f"The generated code is not valid: {code}")
-            raise e
-        try:
-            fn = vars.get("solve", lambda x: x)
-            return fn(input)
-        except Exception as e:
-            logging.error(f"Error executing code: {e}")
-            raise e
 
 
     def __repr__(self):
