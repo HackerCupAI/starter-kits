@@ -88,7 +88,20 @@ Extract the code from the response. reply with the code only. Omit any additiona
 - The code should be a valid python program.
 - Get the `solve` function with the corresponding imports"""
 
-
+@weave.op
+def solve_problem(problem: Problem, on_sample=False, use_images=False, timeout=60) -> dict:
+    code = generate_code(
+        problem, 
+        system_prompt=system_prompt, 
+        prompt_template=prompt_template, 
+        extract_prompt=extract_prompt, 
+        use_images=use_images)
+    if on_sample:
+        input, output = problem.sample_input, problem.sample_output
+    else:
+        input, output = problem.get_input(), problem.get_output()
+    generated_output = run(code, input=input, timeout=timeout) 
+    return generated_output, output
 @dataclass
 class Args(simple_parsing.Serializable):
     problem_name: str = "cheeseburger_corollary_ch1" # name of the problem to solve
@@ -107,35 +120,17 @@ if __name__=="__main__":
 
     if args.weave_log: 
         weave.init("hack-starter")
-
-    @weave.op
-    def solve_problem(problem: Problem, on_sample=False) -> dict:
-        code = generate_code(
-            problem, 
-            system_prompt=system_prompt, 
-            prompt_template=prompt_template, 
-            extract_prompt=extract_prompt, 
-            use_images=args.use_images)
-        if on_sample:
-            input, output = problem.sample_input, problem.sample_output
-        else:
-            input, output = problem.get_input(), problem.get_output()
-        generated_output = run(code, input=input, timeout=args.timeout) 
-        matches = check_solution(output, generated_output)
-        return {
-            "matches": matches,
-            "generated_output": generated_output,
-            "code": code
-        }
     
     logging.info("Solving on sample input...")
-    sample_out = solve_problem(problem, on_sample=True)
+    generated_output, output = solve_problem(problem, on_sample=True, use_images=args.use_images, timeout=args.timeout)
+    matches = check_solution(output, generated_output)
     logging.info("Sample Matches:")
-    logging.info(sample_out["matches"])
+    logging.info(matches)
 
     logging.info("Solving on full input...")
-    out = solve_problem(problem)
+    generated_output, output = solve_problem(problem, on_sample=False, use_images=args.use_images, timeout=args.timeout)
+    matches = check_solution(output, generated_output)
     logging.info("Final Matches:")
-    logging.info(out["matches"])
+    logging.info(matches)
 
 
