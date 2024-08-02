@@ -2,6 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
 import openai
 import weave
@@ -99,43 +100,51 @@ class Args(simple_parsing.Serializable):
     on_sample: bool = False # run evaluation on sample inputs/outputs
     use_images: bool = False # set to True to use images in the prompt
     debug: bool = False # set to True to see the debug logs
+    timeout: int = 60 # timeout for the code execution
 
 if __name__=="__main__":
     args = simple_parsing.parse(Args)
     setup_logger(args.debug)
     logging.info(f"Parsed args: {args}")
+    t0 = time.perf_counter()
 
     problems = Problem.find_all(args.folder_path)  # dataset
 
     if args.weave_log: weave.init("hack-starter")
 
     @weave.op
-    async def generate_sol(problem: Problem):
+    async def solve_problem(problem: Problem, on_sample=args.on_sample) -> dict:
         code = await generate_code(
             problem, 
             system_prompt=system_prompt, 
             prompt_template=prompt_template, 
             extract_prompt=extract_prompt, 
             use_images=args.use_images)
-        logging.info(f"Generated code: {code}")
-        output = run(code, input=problem.sample_input if args.on_sample else problem.input)
-        return output
+        if on_sample:
+            input, output = problem.sample_input, problem.sample_output
+        else:
+            input, output = problem.get_input(), problem.get_output()
+        return await run(code, input=input, timeout=args.timeout) 
 
     def match(problem: Problem, model_output: str):
         matches = check_solution(problem.sample_output if args.on_sample else problem.output, model_output)
         return matches
 
 
-    if args.log:
+    if args.weave_log:
         dataset = [{"problem": problem} for problem in problems]
         evaluation = weave.Evaluation(dataset=dataset, scorers=[match])
-        asyncio.run(evaluation.evaluate(generate_sol))
+        asyncio.run(evaluation.evaluate(solve_problem))
     else:
         async def task(problem):
-            model_output = await generate_sol(problem)
-            matches = match(problem, model_output)
-            logging.info(f"Problem {problem.name} results: {matches}")
-            return matches
+            try:
+                model_output = await solve_problem(problem)
+                matches = match(problem, model_output)
+                logging.info(f"Problem {problem.name} results: {matches}")
+                return {"runs": "✅", "error": None, **matches}
+            except Exception as e:
+                logging.error(f"Problem {problem.name} failed with error: {e}")
+                return {"runs": "❌", "error": str(e), "matches": -1, "total": -1, "offending_cases": []}
 
         async def evaluate():
             tasks = [task(problem) for problem in problems]
@@ -146,5 +155,21 @@ if __name__=="__main__":
 
         # let's format the results in a pandas dataframe
         import pandas as pd
-        df = pd.DataFrame(eval_results)
-        logging.info(f"Evaluation results: {df}")
+        from tabulate import tabulate
+
+        df = pd.DataFrame([
+            {
+                "problem": problem.name,
+                "runs": result["runs"],
+                "error": result["error"],
+                "matches": result["matches"],
+                "offending_cases": len(result["offending_cases"]),
+                "total": result["total"],
+                "valid": "✅" if result["matches"] == result["total"] else "❌"
+            }
+            for problem, result in zip(problems, eval_results)
+        ])
+        logging.info("Evaluation results:")
+        table = tabulate(df, headers='keys', tablefmt='pretty', showindex=False)
+        print(table)
+        logging.info(f"Evaluation took {time.perf_counter() - t0:.2f} seconds")

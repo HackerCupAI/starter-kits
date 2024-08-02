@@ -30,9 +30,9 @@ def maybe_remove_backticks(solution: str) -> str:
 def check_solution(expected: str, actual: str) -> dict:
     "Check the solution against the expected output"
     matches = 0
-    expected_lines = expected.split("\n")
+    expected_lines = expected.strip().split("\n")
     logging.debug(f"Expected lines: {expected_lines}")
-    actual_lines = actual.split("\n")
+    actual_lines = actual.strip().split("\n")
     logging.debug(f"Actual lines: {actual_lines}")
     offending_cases = []
     for expected_line, actual_line in zip(expected_lines, actual_lines):
@@ -61,7 +61,7 @@ def timeout_ctx_mngr(seconds):
         signal.signal(signal.SIGALRM, original_handler)
 
 
-def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+async def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
     logging.info("Running solution synchronously...")
     vars = {}
     try:

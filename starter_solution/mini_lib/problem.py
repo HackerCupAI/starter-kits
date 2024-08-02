@@ -38,8 +38,8 @@ class Problem:
     problem_description: str
     sample_input: str
     sample_output: str
-    input: str
-    output: str
+    input_path: Path # this is sometimes a big file
+    output_path: Path # this is sometimes a big file
     folder_path: Path
     code: Optional[str] = None
     images: list[str] = field(default_factory=list)
@@ -51,6 +51,12 @@ class Problem:
         used_images = _find_used_images(self.problem_description, self.folder_path)
         self.problem_description = _replace_img_links(self.problem_description, used_images)
         self.images = [_encode_image(str(image_path)) for image_path in used_images]
+
+    def get_input(self) -> str:
+        return self.input_path.read_text()
+
+    def get_output(self) -> str:
+        return self.output_path.read_text()
 
     @classmethod
     def from_name(cls, name: str, folder_path: Path):
@@ -76,8 +82,8 @@ class Problem:
             problem_description=description_path.read_text(),
             sample_input=sample_input_path.read_text(),
             sample_output=sample_output_path.read_text(),
-            input=input_path.read_text(),
-            output=input_path.with_suffix('.out').read_text(),
+            input_path=input_path,
+            output_path=input_path.with_suffix('.out'),
             folder_path=input_path.parent,
         )
 
@@ -125,7 +131,8 @@ class Problem:
     Description: {self.problem_description[:50]}...
     Sample Input: {self.sample_input[:50]}...
     Sample Output: {self.sample_output[:50]}...
-    Input: {self.input[:50]}...
+    Input Path: {self.input_path}
+    Output Path: {self.output_path}
     Images: {len(self.images)} image(s)
 """
 

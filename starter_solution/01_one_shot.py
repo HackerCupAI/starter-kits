@@ -96,6 +96,7 @@ class Args(simple_parsing.Serializable):
     weave_log: bool = False # set to True to log to weave
     use_images: bool = False # set to True to use images in the prompt
     debug: bool = False # set to True to see the debug logs
+    timeout: int = 60 # timeout for the code execution
 
 if __name__=="__main__":
     args = simple_parsing.parse(Args)
@@ -108,15 +109,18 @@ if __name__=="__main__":
         weave.init("hack-starter")
 
     @weave.op
-    def solve_problem(problem: Problem, input: str, output: str) -> dict:
+    def solve_problem(problem: Problem, on_sample=False) -> dict:
         code = generate_code(
             problem, 
             system_prompt=system_prompt, 
             prompt_template=prompt_template, 
             extract_prompt=extract_prompt, 
             use_images=args.use_images)
-
-        generated_output = run(code, input=input) 
+        if on_sample:
+            input, output = problem.sample_input, problem.sample_output
+        else:
+            input, output = problem.get_input(), problem.get_output()
+        generated_output = run(code, input=input, timeout=args.timeout) 
         matches = check_solution(output, generated_output)
         return {
             "matches": matches,
@@ -124,11 +128,13 @@ if __name__=="__main__":
             "code": code
         }
     
-    sample_out = solve_problem(problem, problem.sample_input, problem.sample_output)
+    logging.info("Solving on sample input...")
+    sample_out = solve_problem(problem, on_sample=True)
     logging.info("Sample Matches:")
     logging.info(sample_out["matches"])
 
-    out = solve_problem(problem, problem.input, problem.output)
+    logging.info("Solving on full input...")
+    out = solve_problem(problem)
     logging.info("Final Matches:")
     logging.info(out["matches"])
 
