@@ -9,7 +9,7 @@ import simple_parsing
 from tqdm.asyncio import tqdm
 
 from mini_lib.problem import Problem
-from mini_lib.utils import maybe_remove_backticks, setup_logger, check_solution
+from mini_lib.utils import maybe_remove_backticks, setup_logger, check_solution, run
 
 client = openai.AsyncOpenAI()
 
@@ -94,7 +94,7 @@ Extract the code from the response. reply with the code only. Omit any additiona
 @dataclass
 class Args(simple_parsing.Serializable):
     folder_path: Path = Path("./dataset/2023/practice") # path to the folder containing the problems
-    log: bool = False # set to True to log to weave
+    weave_log: bool = False # set to True to log to weave
     max_num_problems: int = 10 # maximum number of problems to evaluate
     on_sample: bool = False # run evaluation on sample inputs/outputs
     use_images: bool = False # set to True to use images in the prompt
@@ -107,7 +107,7 @@ if __name__=="__main__":
 
     problems = Problem.find_all(args.folder_path)  # dataset
 
-    if args.log: weave.init("hack-starter")
+    if args.weave_log: weave.init("hack-starter")
 
     @weave.op
     async def generate_sol(problem: Problem):
@@ -118,7 +118,7 @@ if __name__=="__main__":
             extract_prompt=extract_prompt, 
             use_images=args.use_images)
         logging.info(f"Generated code: {code}")
-        output = problem.exec(code, input=problem.sample_input if args.on_sample else problem.input)
+        output = run(code, input=problem.sample_input if args.on_sample else problem.input)
         return output
 
     def match(problem: Problem, model_output: str):

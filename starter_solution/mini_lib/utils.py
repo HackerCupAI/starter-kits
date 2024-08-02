@@ -39,7 +39,7 @@ def check_solution(expected: str, actual: str) -> dict:
             offending_cases.append((expected_line, actual_line))
     return {"matches": matches, "total": len(expected_lines), "offending_cases": offending_cases}
 
-def exec(code: Optional[str] = None, input: Optional[str] = None):
+def run(code: Optional[str] = None, input: Optional[str] = None):
     logging.info("Running solution synchronously...")
     vars = {}
     try:
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     # test exec
     code = "def solve(x):\n    return x + 1"
     input = "2"
-    result = exec(code, input)
+    result = run(code, input)
     assert result == 3, "Expected 3"
     print("All tests passed!")
 

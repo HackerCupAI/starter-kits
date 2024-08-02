@@ -7,7 +7,7 @@ import weave
 import simple_parsing
 
 from mini_lib.problem import Problem
-from mini_lib.utils import maybe_remove_backticks, check_solution, setup_logger
+from mini_lib.utils import maybe_remove_backticks, check_solution, setup_logger, run
 
 client = openai.OpenAI()
 
@@ -116,7 +116,7 @@ if __name__=="__main__":
             extract_prompt=extract_prompt, 
             use_images=args.use_images)
 
-        generated_output = problem.exec(code, input=input) 
+        generated_output = run(code, input=input) 
         matches = check_solution(output, generated_output)
         return {
             "matches": matches,
