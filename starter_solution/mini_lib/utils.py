@@ -60,8 +60,7 @@ def timeout_ctx_mngr(seconds):
         signal.alarm(0)
         signal.signal(signal.SIGALRM, original_handler)
 
-
-async def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
     logging.info("Running solution synchronously...")
     vars = {}
     try:
@@ -76,6 +75,10 @@ async def run(code: Optional[str] = None, input: Optional[str] = None, timeout: 
     except Exception as e:
         logging.error(f"Error executing code: {e}")
         raise e
+    
+async def arun(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+    return run(code, input, timeout)
+    
 
 if __name__ == "__main__":
     # Test check_solution
