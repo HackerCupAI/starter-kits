@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from pathlib import Path
+import logging
 
 import openai
 import weave
 import simple_parsing
 
 from mini_lib.problem import Problem
-from mini_lib.utils import maybe_remove_backticks, check_solution
+from mini_lib.utils import maybe_remove_backticks, check_solution, setup_logger
 
 client = openai.OpenAI()
 
@@ -20,8 +21,13 @@ def call_model(messages, **kwargs):
     ).choices[0].message.content
 
 @weave.op
-def generate_code(problem: Problem, system_prompt: str, prompt_template: str, use_images: bool = False) -> str:
-    print(f"Generating code solution for: {problem.name}")
+def generate_code(
+    problem: Problem, 
+    system_prompt: str, 
+    prompt_template: str, 
+    extract_prompt: str,
+    use_images: bool = False) -> str:
+    logging.info(f"Generating code solution for: {problem.name}")
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -36,20 +42,18 @@ def generate_code(problem: Problem, system_prompt: str, prompt_template: str, us
 
     # call model one first time to get the code
     out = call_model(messages=messages)
-    print("Generating initial analysis and solution")
+    logging.info("Generating initial analysis and solution")
 
     # Let's make a second call to the model to extract the code from the response
     messages.append({"role": "assistant", "content": out})
     messages.append({"role": "user", "content": [
         {"type": "text", 
-         "text": ("Extract the code from the response. reply with the code only. "
-                  "Don't add any comments or other text to the code. "
-                  "The code should be a valid python program.")}
+         "text": extract_prompt}
     ]})
 
     # call model second time to extract the code
     solution = call_model(messages=messages)
-    print("Extracting the solution from the previous generation...")
+    logging.info("Extracting the solution from the previous generation...")
 
     # in case we have ```python stuff...`
     solution = maybe_remove_backticks(solution)
@@ -69,39 +73,55 @@ Output:
 
 Create a python program that returns the correct output for the given input. 
 The file should have a single `solve` method that has the following signature:
-input: The same Input provided above
-output: The same Output provided above
+input: [str]: The same Input provided above
+output [str]: The same Output provided above
 
 ```python
+from tqdm import tqdm
 def solve(input: str) -> str: 
 ```
 """
 
+extract_prompt = """
+Extract the code from the response. reply with the code only. Omit any additional example or explanation.
+- If the solution involves a for loop, please use `for sample in tqdm(range(samples))` to show progress.
+- The code should be a valid python program.
+- Get the `solve` function with the corresponding imports"""
+
+
 @dataclass
 class Args(simple_parsing.Serializable):
-    problem_name: str = "cheeseburger_corollary_ch1"
-    folder_path: Path = Path("./dataset/2023/practice/")
-    log: bool = False
-    use_images: bool = False
+    problem_name: str = "cheeseburger_corollary_ch1" # name of the problem to solve
+    folder_path: Path = Path("./dataset/2023/practice/") # path to the folder containing the problems
+    log: bool = False # set to True to log to weave
+    use_images: bool = False # set to True to use images in the prompt
+    debug: bool = False # set to True to see the debug logs
 
 if __name__=="__main__":
     args = simple_parsing.parse(Args)
+
+    setup_logger(args.debug)
 
     problem = Problem.from_name(args.problem_name, args.folder_path)
 
     if args.log: weave.init("hack-starter")
 
-    code = generate_code(problem, system_prompt, prompt_template, use_images=args.use_images)
+    code = generate_code(
+            problem, 
+            system_prompt=system_prompt, 
+            prompt_template=prompt_template, 
+            extract_prompt=extract_prompt, 
+            use_images=args.use_images)
 
     sample_output = problem.exec(code, input=problem.sample_input)
     sample_matches = check_solution(problem.sample_output, sample_output)
-    print("Sample Matches:")
-    print(sample_matches)
+    logging.info("Sample Matches:")
+    logging.info(sample_matches)
 
     # now against the real input
     output = problem.exec(code, input=problem.input)
     matches = check_solution(problem.output, output)
-    print("Final Matches:")
-    print(matches)
+    logging.info("Final Matches:")
+    logging.info(matches)
 
 
