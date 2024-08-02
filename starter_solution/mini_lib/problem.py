@@ -3,8 +3,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, List
-
-from .utils import maybe_remove_backticks, Runner
+import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 def _encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -47,7 +47,6 @@ class Problem:
 
     def __post_init__(self):
         self._process_description_and_images()
-        self.run = Runner()
 
     def _process_description_and_images(self):
         used_images = _find_used_images(self.problem_description, self.folder_path)
@@ -121,17 +120,45 @@ class Problem:
         print(f"Found {len(problems)} problems in folder: {folder_path}")
         return problems
     
-    def exec(self, code: Optional[str] = None, input: Optional[str] = None):
-        print("Running solution...")
+    def exec(self, code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+        print("Running solution synchronously...")
         if code is None:
             code = self.code
-        vars = self.run(code)
-        solve = vars["solve"]
-        print(f"Extracted function: {solve}")
         if input is None:
             input = self.input
-        return solve(input)
-    
+
+        vars = {}
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(self._exec_in_thread, code, input)
+            try:
+                return future.result(timeout=timeout)
+            except TimeoutError:
+                print(f"Execution timed out after {timeout} seconds")
+                return None
+
+    async def async_exec(self, code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+        print("Running solution asynchronously...")
+        if code is None:
+            code = self.code
+        if input is None:
+            input = self.input
+
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor() as pool:
+            try:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(pool, self._exec_in_thread, code, input),
+                    timeout=timeout
+                )
+                return result
+            except asyncio.TimeoutError:
+                print(f"Execution timed out after {timeout} seconds")
+                return None
+
+    def _exec_in_thread(self, code: str, input: str):
+        vars = {}
+        exec(code, vars)
+        return vars.get("solve", lambda x: x)(input)
 
     def __repr__(self):
         return f"""Problem: {self.name}
