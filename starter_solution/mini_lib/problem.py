@@ -131,13 +131,13 @@ class Problem:
             exec(code, vars)
         except Exception as e:
             logging.error(f"The generated code is not valid: {code}")
-            return None
+            raise e
         try:
             fn = vars.get("solve", lambda x: x)
             return fn(input)
         except Exception as e:
             logging.error(f"Error executing code: {e}")
-            return None
+            raise e
 
 
     def __repr__(self):

@@ -93,7 +93,7 @@ Extract the code from the response. reply with the code only. Omit any additiona
 class Args(simple_parsing.Serializable):
     problem_name: str = "cheeseburger_corollary_ch1" # name of the problem to solve
     folder_path: Path = Path("./dataset/2023/practice/") # path to the folder containing the problems
-    log: bool = False # set to True to log to weave
+    weave_log: bool = False # set to True to log to weave
     use_images: bool = False # set to True to use images in the prompt
     debug: bool = False # set to True to see the debug logs
 
@@ -104,24 +104,32 @@ if __name__=="__main__":
 
     problem = Problem.from_name(args.problem_name, args.folder_path)
 
-    if args.log: weave.init("hack-starter")
+    if args.weave_log: 
+        weave.init("hack-starter")
 
-    code = generate_code(
+    @weave.op
+    def solve_problem(problem: Problem, input: str, output: str) -> dict:
+        code = generate_code(
             problem, 
             system_prompt=system_prompt, 
             prompt_template=prompt_template, 
             extract_prompt=extract_prompt, 
             use_images=args.use_images)
 
-    sample_output = problem.exec(code, input=problem.sample_input)
-    sample_matches = check_solution(problem.sample_output, sample_output)
+        generated_output = problem.exec(code, input=input) 
+        matches = check_solution(output, generated_output)
+        return {
+            "matches": matches,
+            "generated_output": generated_output,
+            "code": code
+        }
+    
+    sample_out = solve_problem(problem, problem.sample_input, problem.sample_output)
     logging.info("Sample Matches:")
-    logging.info(sample_matches)
+    logging.info(sample_out["matches"])
 
-    # now against the real input
-    output = problem.exec(code, input=problem.input)
-    matches = check_solution(problem.output, output)
+    out = solve_problem(problem, problem.input, problem.output)
     logging.info("Final Matches:")
-    logging.info(matches)
+    logging.info(out["matches"])
 
 
