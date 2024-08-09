@@ -96,9 +96,10 @@ Extract the code from the response. reply with the code only. Omit any additiona
 @dataclass
 class Args(simple_parsing.Serializable):
     folder_path: Path = Path("./dataset/2023/practice") # path to the folder containing the problems
-    weave_log: bool = True # set to True to log to weave
-    max_num_problems: int = 1 # maximum number of problems to evaluate
-    on_sample: bool = False # run evaluation on sample inputs/outputs
+    weave_log: bool = False # set to True to log to weave
+    weave_eval: bool = False # set to True to evaluate the code
+    max_num_problems: int = 5 # maximum number of problems to evaluate
+    on_sample: bool = True # run evaluation on sample inputs/outputs
     use_images: bool = False # set to True to use images in the prompt
     debug: bool = False # set to True to see the debug logs
     timeout: int = 60 # timeout for the code execution
@@ -126,35 +127,35 @@ if __name__=="__main__":
         else:
             input, output = problem.get_input(), problem.get_output()
         generated_output = await arun(code, input=input, timeout=args.timeout) 
-        return generated_output, output
+        return {"code": code, "generated_output": generated_output, "expected_output": output}
 
     def match(model_output: str):
-        generated_output, output = model_output
-        matches = check_solution(output, generated_output)
+        matches = check_solution(model_output["expected_output"], model_output["generated_output"])
         return matches
 
 
-    if False:
-    # if args.weave_log:
+    if args.weave_eval:
         dataset = [{"problem": problem} for problem in problems]
         evaluation = weave.Evaluation(dataset=dataset, scorers=[])
         asyncio.run(evaluation.evaluate(solve_problem))
     else:
-        async def task(problem):
+        @weave.op
+        async def solve_one(problem):
             try:
                 model_output = await solve_problem(problem)
-                matches = match(problem, model_output)
+                matches = match(model_output)
                 logging.info(f"Problem {problem.name} results: {matches}")
                 return {"runs": "✅", "error": None, **matches}
             except Exception as e:
                 logging.error(f"Problem {problem.name} failed with error: {e}")
                 return {"runs": "❌", "error": str(e), "matches": -1, "total": -1, "offending_cases": []}
 
+        @weave.op
         async def evaluate():
-            tasks = [task(problem) for problem in problems]
+            tasks = [solve_one(problem) for problem in problems]
             eval_results = await tqdm.gather(*tasks, desc="Solving problems...")
             return eval_results
-
+        
         eval_results = asyncio.run(evaluate())
 
         # let's format the results in a pandas dataframe

@@ -89,19 +89,18 @@ Extract the code from the response. reply with the code only. Omit any additiona
 - Get the `solve` function with the corresponding imports"""
 
 @weave.op
-def solve_problem(problem: Problem, on_sample=False, use_images=False, timeout=60) -> dict:
+def solve_problem(problem: Problem, use_images=False, timeout=60) -> dict:
     code = generate_code(
         problem, 
         system_prompt=system_prompt, 
         prompt_template=prompt_template, 
         extract_prompt=extract_prompt, 
         use_images=use_images)
-    if on_sample:
-        input, output = problem.sample_input, problem.sample_output
-    else:
-        input, output = problem.get_input(), problem.get_output()
+    input, output = problem.sample_input, problem.sample_output
     generated_output = run(code, input=input, timeout=timeout) 
-    return generated_output, output
+    
+    return {"code": code, "generated_output": generated_output, "expected_output": output}
+
 @dataclass
 class Args(simple_parsing.Serializable):
     problem_name: str = "cheeseburger_corollary_ch1" # name of the problem to solve
@@ -121,15 +120,16 @@ if __name__=="__main__":
     if args.weave_log: 
         weave.init("hack-starter")
     
-    logging.info("Solving on sample input...")
-    generated_output, output = solve_problem(problem, on_sample=True, use_images=args.use_images, timeout=args.timeout)
-    matches = check_solution(output, generated_output)
+    logging.info("> Solving on sample input...")
+    problem_solution = solve_problem(problem, use_images=args.use_images, timeout=args.timeout)
+    matches = check_solution(problem_solution["expected_output"], problem_solution["generated_output"])
     logging.info("Sample Matches:")
     logging.info(matches)
 
-    logging.info("Solving on full input...")
-    generated_output, output = solve_problem(problem, on_sample=False, use_images=args.use_images, timeout=args.timeout)
-    matches = check_solution(output, generated_output)
+    logging.info("> Solving on full input...")
+    expected_output = problem.get_output()
+    generated_output = run(problem_solution["code"], input=problem.get_input(), timeout=args.timeout) 
+    matches = check_solution(expected_output, generated_output)
     logging.info("Final Matches:")
     logging.info(matches)
 
