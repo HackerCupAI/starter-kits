@@ -19,12 +19,13 @@ def setup_logger(debug = False, silence_openai = True):
         logging.getLogger("openai").setLevel(logging.WARNING)
         logging.getLogger("httpx").setLevel(logging.WARNING)
 
+import re
+
 def maybe_remove_backticks(solution: str) -> str:
     "Remove backticks from the solution"
-    if solution.startswith("```python"):
-        solution = solution[len("```python") :]
-    if solution.endswith("```"):
-        solution = solution[: -len("```")]
+    solution = solution.strip()
+    solution = re.sub(r'^```python\s*', '', solution)
+    solution = re.sub(r'\s*```$', '', solution)
     return solution
 
 def check_solution(expected: str, actual: str) -> dict:
@@ -95,13 +96,14 @@ if __name__ == "__main__":
     assert result["offending_cases"][0] == ("Case #2: NO", "Case #2: Yes"), "Unexpected offending case"
 
     # Test maybe_remove_backticks
-    assert maybe_remove_backticks("print('hello')\n```") == "print('hello')\n", "Failed to remove trailing backticks"
-    assert maybe_remove_backticks("```python\nprint('hello')") == "\nprint('hello')", "Failed to remove leading backticks"
-    assert maybe_remove_backticks("```python\nprint('hello')\n```") == "\nprint('hello')\n", "Failed to remove both leading and trailing backticks"
+    assert maybe_remove_backticks("print('hello')\n```") == "print('hello')"
+    assert maybe_remove_backticks("print('hello')\n```  ") == "print('hello')"
+    assert maybe_remove_backticks("```python\nprint('hello')") == "print('hello')"
+    assert maybe_remove_backticks("```python\nprint('hello')\n```") == "print('hello')"
 
     # test exec
-    code = "def solve(x):\n    return x + 1"
-    input = "2"
+    code = "def solve(x: int):\n    return x + 1"
+    input = 2
     result = run(code, input)
     assert result == 3, "Expected 3"
     print("All tests passed!")
