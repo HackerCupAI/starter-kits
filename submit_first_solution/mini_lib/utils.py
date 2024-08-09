@@ -62,6 +62,7 @@ def timeout_ctx_mngr(seconds):
 
 def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
     logging.info("Running solution synchronously...")
+    t0 = time.perf_counter()
     vars = {}
     try:
         exec(code, vars)
@@ -75,6 +76,9 @@ def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 
     except Exception as e:
         logging.error(f"Error executing code: {e}")
         raise e
+    finally:
+        t1 = time.perf_counter()
+        logging.info(f"Code solution runtime: {t1 - t0:.2f} seconds")
     
 async def arun(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
     return run(code, input, timeout)

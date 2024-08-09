@@ -10,7 +10,7 @@ import simple_parsing
 from tqdm.asyncio import tqdm
 
 from mini_lib.problem import Problem
-from mini_lib.utils import maybe_remove_backticks, setup_logger, check_solution, run
+from mini_lib.utils import maybe_remove_backticks, setup_logger, check_solution, arun
 
 client = openai.AsyncOpenAI()
 
@@ -76,6 +76,7 @@ Output:
 {sample_output}
 
 Create a python program that returns the correct output for the given input. 
+Make the code efficient and fast, so we can solve large inputs.
 The file should have a single `solve` method that has the following signature:
 input: [str]: The same Input provided above
 output [str]: The same Output provided above
@@ -95,8 +96,8 @@ Extract the code from the response. reply with the code only. Omit any additiona
 @dataclass
 class Args(simple_parsing.Serializable):
     folder_path: Path = Path("./dataset/2023/practice") # path to the folder containing the problems
-    weave_log: bool = False # set to True to log to weave
-    max_num_problems: int = 10 # maximum number of problems to evaluate
+    weave_log: bool = True # set to True to log to weave
+    max_num_problems: int = 1 # maximum number of problems to evaluate
     on_sample: bool = False # run evaluation on sample inputs/outputs
     use_images: bool = False # set to True to use images in the prompt
     debug: bool = False # set to True to see the debug logs
@@ -108,7 +109,7 @@ if __name__=="__main__":
     logging.info(f"Parsed args: {args}")
     t0 = time.perf_counter()
 
-    problems = Problem.find_all(args.folder_path)  # dataset
+    problems = Problem.find_all(args.folder_path)[:args.max_num_problems] # dataset
 
     if args.weave_log: weave.init("hack-starter")
 
@@ -124,16 +125,19 @@ if __name__=="__main__":
             input, output = problem.sample_input, problem.sample_output
         else:
             input, output = problem.get_input(), problem.get_output()
-        return await run(code, input=input, timeout=args.timeout) 
+        generated_output = await arun(code, input=input, timeout=args.timeout) 
+        return generated_output, output
 
-    def match(problem: Problem, model_output: str):
-        matches = check_solution(problem.sample_output if args.on_sample else problem.output, model_output)
+    def match(model_output: str):
+        generated_output, output = model_output
+        matches = check_solution(output, generated_output)
         return matches
 
 
-    if args.weave_log:
+    if False:
+    # if args.weave_log:
         dataset = [{"problem": problem} for problem in problems]
-        evaluation = weave.Evaluation(dataset=dataset, scorers=[match])
+        evaluation = weave.Evaluation(dataset=dataset, scorers=[])
         asyncio.run(evaluation.evaluate(solve_problem))
     else:
         async def task(problem):
