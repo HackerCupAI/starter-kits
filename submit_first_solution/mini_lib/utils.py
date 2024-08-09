@@ -1,9 +1,12 @@
+import asyncio
+import concurrent.futures
 import logging
-from typing import Optional
-from rich.logging import RichHandler
-import signal
-from contextlib import contextmanager
 import time
+from typing import Optional
+
+from rich.logging import RichHandler
+
+import weave
 
 class TimeoutException(Exception):
     pass
@@ -28,6 +31,7 @@ def maybe_remove_backticks(solution: str) -> str:
     solution = re.sub(r'\s*```$', '', solution)
     return solution
 
+@weave.op
 def check_solution(expected: str, actual: str) -> dict:
     "Check the solution against the expected output"
     matches = 0
@@ -46,44 +50,47 @@ def check_solution(expected: str, actual: str) -> dict:
             offending_cases.append((expected_line, actual_line))
     return {"matches": matches, "total": len(expected_lines), "offending_cases": offending_cases}
 
+class TimeoutException(Exception):
+    pass
 
-@contextmanager
-def timeout_ctx_mngr(seconds):
-    def timeout_handler(signum, frame):
-        raise TimeoutException("Function call timed out")
-
-    original_handler = signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(seconds)
-    
-    try:
-        yield
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, original_handler)
-
-def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
-    logging.info("Running solution synchronously...")
-    t0 = time.perf_counter()
+def run_with_timeout(code: str, input: Optional[str], timeout: int):
     vars = {}
     try:
         exec(code, vars)
     except Exception as e:
         logging.error(f"The generated code is not valid: {code}")
         raise e
+
+    fn = vars.get("solve", lambda x: x)
+    return fn(input)
+
+async def arun(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+    logging.info("Running solution asynchronously...")
+    loop = asyncio.get_running_loop()
+    t0 = time.perf_counter()
     try:
-        with timeout_ctx_mngr(timeout):
-            fn = vars.get("solve", lambda x: x)
-            return fn(input)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = loop.run_in_executor(
+                executor, 
+                run_with_timeout, 
+                code, 
+                input, 
+                timeout
+            )
+            result = await asyncio.wait_for(future, timeout=timeout)
+        return result
+    except asyncio.TimeoutError:
+        raise TimeoutException("Function call timed out")
     except Exception as e:
         logging.error(f"Error executing code: {e}")
         raise e
     finally:
         t1 = time.perf_counter()
         logging.info(f"Code solution runtime: {t1 - t0:.2f} seconds")
-    
-async def arun(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
-    return run(code, input, timeout)
-    
+
+def run(code: Optional[str] = None, input: Optional[str] = None, timeout: int = 60):
+    logging.info("Running solution synchronously...")
+    return asyncio.run(arun(code, input, timeout))
 
 if __name__ == "__main__":
     # Test check_solution
@@ -105,6 +112,10 @@ if __name__ == "__main__":
     code = "def solve(x: int):\n    return x + 1"
     input = 2
     result = run(code, input)
+    assert result == 3, "Expected 3"
+
+    # async test
+    result = asyncio.run(arun(code, input))
     assert result == 3, "Expected 3"
     print("All tests passed!")
 
