@@ -107,6 +107,7 @@ class Args(simple_parsing.Serializable):
     folder_path: Path = Path("./dataset/2023/practice/") # path to the folder containing the problems
     weave_log: bool = False # set to True to log to weave
     use_images: bool = False # set to True to use images in the prompt
+    save_output: bool = True # set to True to save the output to a file
     debug: bool = False # set to True to see the debug logs
     timeout: int = 60 # timeout for the code execution
 
@@ -133,4 +134,8 @@ if __name__=="__main__":
     logging.info("Final Matches:")
     logging.info(matches)
 
+    if args.save_output:
+        logging.info("> Saving output to files")
+        problem.save_output(problem_solution["generated_output"])
+        problem.save_code(problem_solution["code"])
 

@@ -101,6 +101,7 @@ class Args(simple_parsing.Serializable):
     max_num_problems: int = 5 # maximum number of problems to evaluate
     on_sample: bool = True # run evaluation on sample inputs/outputs
     use_images: bool = False # set to True to use images in the prompt
+    save_output: bool = True # set to True to save the output to a file
     debug: bool = False # set to True to see the debug logs
     timeout: int = 60 # timeout for the code execution
 
@@ -127,6 +128,9 @@ if __name__=="__main__":
         else:
             input, output = problem.get_input(), problem.get_output()
         generated_output = await arun(code, input=input, timeout=args.timeout) 
+        if args.save_output:
+            problem.save_output(generated_output)
+            problem.save_code(code)
         return {"code": code, "generated_output": generated_output, "expected_output": output}
 
     def match(model_output: str):
@@ -136,7 +140,7 @@ if __name__=="__main__":
 
     if args.weave_eval:
         dataset = [{"problem": problem} for problem in problems]
-        evaluation = weave.Evaluation(dataset=dataset, scorers=[])
+        evaluation = weave.Evaluation(dataset=dataset, scorers=[match])
         asyncio.run(evaluation.evaluate(solve_problem))
     else:
         @weave.op

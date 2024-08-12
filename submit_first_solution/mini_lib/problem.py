@@ -58,6 +58,16 @@ class Problem:
     def get_output(self) -> str:
         return self.output_path.read_text()
 
+    def save_code(self, code):
+        code_name = f"{self.name}_generated.py"
+        code_path = Path(self.folder_path) / code_name
+        code_path.write_text(code)
+
+    def save_output(self, output):
+        outfile_name = f"{self.name}_generated.out"
+        outfile = Path(self.folder_path) / outfile_name
+        outfile.write_text(output)
+
     @classmethod
     def from_name(cls, name: str, folder_path: Path):
         description_path = folder_path / f"{name}.md"
@@ -88,28 +98,11 @@ class Problem:
         )
 
     @classmethod
-    def from_folder(cls, folder_path: Path):
-        sample_input_path = next(folder_path.glob('*_samples.in'))
-        sample_output_path = next(folder_path.glob('*_samples.out'))
-        description_path = next(folder_path.glob('*.md'))
-        name = description_path.stem
-        input_path = next(f for f in folder_path.glob('*.in') if not f.name.endswith('_samples.in'))
-
-        return cls.from_files(
-            name=name,
-            description_path=description_path,
-            sample_input_path=sample_input_path,
-            sample_output_path=sample_output_path,
-            input_path=input_path,
-            folder_path=folder_path,
-        )
-
-    @classmethod
     def find_all(cls, folder_path: Path) -> List['Problem']:
         problems = []
         
         # Find all markdown files in the folder
-        md_files = folder_path.glob('*.md')
+        md_files = folder_path.rglob('*.md')
         
         for md_file in md_files:
             # Skip files that end with '_sol.md' as they might be solution files
@@ -118,7 +111,7 @@ class Problem:
             
             problem_name = md_file.stem
             try:
-                problem = cls.from_name(problem_name, folder_path)
+                problem = cls.from_name(problem_name, md_file.parent)
                 problems.append(problem)
             except FileNotFoundError as e:
                 print(f"Warning: Couldn't create problem from {problem_name}. Error: {e}")
@@ -145,8 +138,11 @@ if __name__ == "__main__":
     problem = Problem.from_name(
         problem_name, folder_path
     )
-    logging.info(problem)
+    print(problem)
+
 
     # load all problems in folder
+    folder_path = Path("../dataset/2023/")
     problems = Problem.find_all(folder_path)
-    logging.info(problems)
+    print(f"Found {len(problems)} problems in folder: {folder_path}")
+    assert len(problems) == 29

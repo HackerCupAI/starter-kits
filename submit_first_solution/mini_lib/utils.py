@@ -1,12 +1,19 @@
 import asyncio
 import concurrent.futures
+import json
 import logging
+from pathlib import Path
 import time
-from typing import Optional
+from typing import Optional, List
 
 from rich.logging import RichHandler
 
 import weave
+
+def load_jsonl(file: Path) -> List[dict]:
+    """Load a JSONL file"""
+    with open(file, 'r') as f:
+        return [json.loads(line) for line in f]
 
 class TimeoutException(Exception):
     pass
@@ -48,7 +55,7 @@ def check_solution(expected: str, actual: str) -> dict:
             matches += 1  # +1 for the whole line match
         else:
             offending_cases.append((expected_line, actual_line))
-    return {"matches": matches, "total": len(expected_lines), "offending_cases": offending_cases}
+    return {"matches": matches == len(expected_lines), "total": len(expected_lines), "offending_cases": offending_cases}
 
 class TimeoutException(Exception):
     pass
