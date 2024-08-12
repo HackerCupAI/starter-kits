@@ -59,9 +59,13 @@ class Problem:
         return self.output_path.read_text()
 
     def save_code(self, code):
+        final_code = f"from pathlib import Path\ninput = Path('./{self.input_path.name}').read_text()\n\n"
         code_name = f"{self.name}_generated.py"
         code_path = Path(self.folder_path) / code_name
-        code_path.write_text(code)
+        final_code += code
+        outfile_name = f"{self.name}_generated.out"
+        final_code += f"\n\noutput = solve(input)\nPath('./{outfile_name}').write_text(output)\n"
+        code_path.write_text(final_code)
 
     def save_output(self, output):
         outfile_name = f"{self.name}_generated.out"
