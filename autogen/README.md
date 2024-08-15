@@ -1,4 +1,9 @@
 # AutoGen HackerCup Code Sample
+
+To get yous started we have a YouTube video from the HackerCup Lectures on how to use this starter kit:
+[![youtube](./youtube_autogen.png)](https://www.youtube.com/watch?v=jCq7oI54R_s)
+
+
 Recommended tools:
 - Docker
 

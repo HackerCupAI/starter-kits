@@ -2,6 +2,9 @@
 
 This folder contains a basic starter kit for solving Hacker Cup problems using AI. It includes scripts for downloading the dataset and generating solutions using an AI model.
 
+To get yous started we have a YouTube video from the HackerCup Lectures on how to use this starter kit:
+[![youtube](./youtube.png)](https://www.youtube.com/watch?v=90FVRHOP9xY)
+
 ## Contents
 
 - `01_one_shot.py`: Main script for generating solutions using an AI model

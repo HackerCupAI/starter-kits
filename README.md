@@ -1,4 +1,4 @@
-## Starter kits
+# Starter kits
 
 We've provided a few starter kits for you to modify and copy paste. Additional info about each kit is available in their respective folders
 
@@ -8,7 +8,7 @@ We've provided all historical Hacker Cup problems in a single dataset on Hugging
 1. [sample_data_solver](sample_data_solver), which evaluates CodeLlama, or any other causal language model on the HuggingFace model hub, with the sample input-output pairs only passed in the prompt. No other information (including problem statement) is used.
 2. [finetuning](finetuning), which finetunes a pretrained causal language model, e.g., CodeLlama, on the Hackercup dataset, treated as a language modeling task. Evaluate off-the-shelf or finetuned model by generating n code solutions for each Hackercup problem, choosing the best (according to sample test case correctness), and evaluating on full test case input-output pairs.
 
-# Using closed models
+## Using closed models
 1. [autogen](autogen/) which is a programming framework for agentic AI https://microsoft.github.io/autogen/
 2. [SWE-agent](SWE-agent/) starter kit which solves leetcode style problems https://princeton-nlp.github.io/SWE-agent/usage/coding_challenges/
 3. [langchain](langchain/) starter kit which is a general framework to create LLM applications
@@ -19,3 +19,22 @@ While the Hacker Cup competition is proceeding, you will download all problems i
 As we're getting ready to announce winners, we'll be going in order from the top ranking winners to the bottom ranking ones
 1. For the open track until we find enough reproducible answers
 2. For the closed track until we find enough models that we can query via an API
+
+
+## HackerCup Lectures
+
+There is a series of lectures on YouTube that explain how to use the starter kits and showcase state of the art ideas to tackle the HackerCup competition.
+
+| Date | Time | Topic | Speaker | YouTube Link |
+|------|------|-------|---------|--------------|
+| August 12th | 5pm CET/ 8am PST | Submit your first solution | Thomas Capelle, Weights & Biases | [Watch](https://www.youtube.com/watch?v=90FVRHOP9xY) |
+| August 13th | 5pm CET/ 8am PST | AutoGen: Solving Complex Coding Challenges Using a Multi-Agent Framework | David Titsworth & Andrzej Banburski-Fahey, Microsoft | [Watch](https://www.youtube.com/watch?v=jCq7oI54R_s) |
+| August 14th | 7pm CET/ 10am PST | Reinforcement learning | Vincent Moens, Meta | [Watch](https://www.youtube.com/watch?v=qMZfHKRwCCo) |
+| August 15th | 5pm CET/ 8am PST | SWEAgent | Kilian Lieret, SWEAgent | [Watch](https://www.youtube.com/watch?v=d9gcXpiiDao) |
+| August 20th | 5pm CET/ 8am PST | RAG | Bharat Ramanathan, Weights & Biases | - |
+| August 21st | 5pm CET/ 8am PST | FineTuning | Joe Cummings, TorchTune | - |
+| August 27th | 5pm CET/ 8am PST | DsPy | Krista Opsahl-Ong & Omar Khattab, DsPy | - |
+
+and more to come...
+
+For the full list check [here](https://events.bizzabo.com/NeurIPShackercuplecture)

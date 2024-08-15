@@ -2,6 +2,10 @@
 
 The full tutorial is here https://princeton-nlp.github.io/SWE-agent/usage/coding_challenges/
 
+
+To get yous started we have a YouTube video from the HackerCup Lectures on how to use this starter kit:
+[![youtube](./swe_youtube.png)](https://www.youtube.com/watch?v=d9gcXpiiDao)
+
 This baseline got about 1/3 of the Dim Sum test cases correctly with no tuning but failed to find the "trick"
 
 But here's some helpful tips we found when getting this baseline to work
