@@ -1,0 +1,12 @@
+bm25s==0.1.10
+datasets==2.21.0
+instructor==1.4.0
+joblib==1.4.2
+openai==1.43.0
+pandas==2.2.2
+pydantic==2.8.2
+scikit_learn==1.5.1
+simple_parsing==0.1.5
+tree_sitter_languages==1.10.2
+tree-sitter==0.21.3
+weave==0.50.14
