@@ -13,13 +13,8 @@ from openai import AsyncOpenAI
 from simple_parsing import ArgumentParser
 from sklearn.metrics.pairwise import cosine_similarity
 
-from utils import (
-    EMBEDDING_MODEL,
-    Problem,
-    Solution,
-    clean_code_string,
-    remove_extra_newlines,
-)
+from utils import (EMBEDDING_MODEL, Problem, Solution, clean_code_string,
+                   remove_extra_newlines)
 
 logging.basicConfig(
     format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO
@@ -186,17 +181,19 @@ def preprocess_data(
 
 
 class Retriever:
-    def __init__(self, data_df: pd.DataFrame):
-        self.data_df = data_df
-        self.docs = self.data_df.to_dict(orient="records")
-        self.corpus = self.data_df["normalized_code"]
-        self.retriever = None
+    def __init__(self, path: str = "param-bharat/rag-hackercup"):
+        ds = load_dataset(path, split="train")
+        data_df = ds.to_pandas()
+        self.docs = data_df.to_dict(orient="records")
+        self.corpus = data_df["normalized_code"]
+        self.retriever = self.index()
 
     def index(self):
         corpus = self.corpus.tolist()
         corpus_tokens = bm25s.tokenize(corpus, stopwords=None)
-        self.retriever = bm25s.BM25(corpus=corpus)
-        self.retriever.index(corpus_tokens)
+        retriever = bm25s.BM25(corpus=corpus)
+        retriever.index(corpus_tokens)
+        return retriever
 
     @weave.op(name="retrieve_docs")
     def retrieve(self, query: str, k: int = 10):
@@ -205,16 +202,6 @@ class Retriever:
         query_tokens = bm25s.tokenize(normalized_query, stopwords=None)
         docs, _ = self.retriever.retrieve(query_tokens, k=k, corpus=self.docs)
         return docs[0, :].tolist()
-
-    def save(self, path: str):
-        self.retriever.save(path)
-        self.data_df.to_json(f"{path}/docs.jsonl", orient="records", lines=True)
-
-    @classmethod
-    def load(cls, path: str):
-        retriever = cls(data_df=pd.read_json(f"{path}/docs.jsonl", lines=True))
-        retriever.retriever = bm25s.BM25.load(path, load_corpus=True)
-        return retriever
 
 
 def index_data(
