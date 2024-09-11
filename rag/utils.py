@@ -306,14 +306,6 @@ def format_example(example: dict) -> str:
 <problem_statement>
 {example['description']}
 </problem_statement>
-<sample_test_cases>
-<inputs>
-{example['sample_inputs']}
-</inputs>
-<outputs>
-{example['sample_outputs']}
-</outputs>
-</sample_test_cases>
 </problem>
 <solution>
 {example['code']}
@@ -329,14 +321,6 @@ def format_examples(examples: List[dict], analyses: List[Analysis]) -> str:
 <problem_statement>
 {example['description']}
 </problem_statement>
-<sample_test_cases>
-<inputs>
-{example['sample_inputs']}
-</inputs>
-<outputs>
-{example['sample_outputs']}
-</outputs>
-</sample_test_cases>
 </problem>
 """
 

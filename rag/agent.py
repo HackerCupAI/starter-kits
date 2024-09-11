@@ -5,19 +5,9 @@ from typing import List
 import weave
 
 from retriever import Retriever, rerank_docs
-from utils import (
-    FAST_LLM,
-    STRONG_LLM,
-    Analysis,
-    Problem,
-    Reflection,
-    Solution,
-    async_client,
-    check_correctness,
-    format_example,
-    format_examples,
-    format_response,
-)
+from utils import (FAST_LLM, STRONG_LLM, Analysis, Problem, Reflection,
+                   Solution, async_client, check_correctness, format_example,
+                   format_examples, format_response)
 
 logging.basicConfig(
     format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO
