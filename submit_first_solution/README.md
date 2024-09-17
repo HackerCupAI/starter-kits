@@ -71,15 +71,6 @@ Output:
 +----------------------------+------+-------+---------+-----------------+-------+-------+
 ```
 
-## Evaluation External Solutions (Bring your own)
-
-You can generate your `.out` solution using your own fancy agentic tool and jsut run the evaluation here:
-
-The `results.jsonl` file shows the expected inputs and outputs. Basically a JSONL with the `generated_output` and the read `output` keys.
-
-```bash
-python 03_eval_solutions.py --results_file "results.jsonl"
-```
 
 ## Customization
 
@@ -101,7 +92,77 @@ python 01_one_shot.py --problem_name road_to_nutella --folder_path "./dataset/20
 
 Check [Weave's documentation](https://wandb.github.io/weave/) for more information on how to use Weave tracing.
 
-## Note
+# Evaluation External Solutions (Bring your own)
+
+You can generate your `.out` solution using your own fancy agentic tool and jut run the evaluation here:
+
+The `03_eval_solutions.py` script is used to evaluate external solutions. To use this script:
+
+```bash
+python 03_eval_solutions.py --help
+usage: 03_eval_solutions.py [-h] [--code str] [--input str] [--output str] [--eval_name str] [--weave_project str]
+                            [--timeout float] [--suffix str] [--verbose bool] [--folder str] [--run_samples bool]
+                            [--cpp_version int]
+
+options:
+  -h, --help            show this help message and exit
+
+Args ['config']:
+  Args(code: str = 'dataset/2023/practice/cheeseburger_corollary_ch1.cpp', input: str = 'dataset/2023/practice/cheeseburger_corollary_ch1.in', output: str = 'dataset/2023/practice/cheeseburger_corollary_ch1.out', eval_name: str = 'super_dupper_model', weave_project: str = 'hackercup-eval-solution', timeout: float = 30, suffix: str = '_generated_output.txt', verbose: bool = False, folder: str = None, run_samples: bool = False, cpp_version: int = 11)
+
+  --code str            The file to run (default: dataset/2023/practice/cheeseburger_corollary_ch1.cpp)
+  --input str           The input to run the program on (default: dataset/2023/practice/cheeseburger_corollary_ch1.in)
+  --output str          The output to compare against (default: dataset/2023/practice/cheeseburger_corollary_ch1.out)
+  --eval_name str       The name of the evaluation (default: super_dupper_model)
+  --weave_project str   The name of the weave project (default: hackercup-eval-solution)
+  --timeout float       The timeout for the program execution (per problem) (default: 30)
+  --suffix str          The suffix for the generated output file (default: _generated_output.txt)
+  --verbose bool, --noverbose bool
+                        Whether to print verbose output (default: False)
+  --folder str          Run all problems in this folder (default: None)
+  --run_samples bool, --norun_samples bool
+                        Whether to run on the sample input/output pairs (default: False)
+  --cpp_version int     The C++ version to use for the program execution (default: 11)
+```
+
+## Running one file
+
+```bash
+python 03_eval_solutions.py --code dataset/2023/practice/cheeseburger_corollary_ch2.cpp \
+--input dataset/2023/practice/cheeseburger_corollary_ch2.in \
+--output dataset/2023/practice/cheeseburger_corollary_ch2.out
+
+# Program passed: {'solved': True, 'runnable': True}
+```
+
+## Running all files in a folder
+
+For example, you can run the 2023/round2 problems on the sample inputs/outputs:
+
+```bash
+python 03_eval_solutions.py --folder dataset/2023/round2 --run_samples
+
+# {'model_output': {'runnable': {'true_count': 3, 'true_fraction': 0.6}},
+#     'check_solution': {
+#         'solved': {'true_count': 3, 'true_fraction': 0.6},
+#         'runnable': {'true_count': 3, 'true_fraction': 0.6}
+#     },
+#     'model_latency': {'mean': 1.8528173923492433}
+# }
+```
+and the corresponding [weave trace](https://wandb.ai/capecape/hackercup-eval-solution/weave/evaluations?peekPath=%2Fcapecape%2Fhackercup-eval-solution%2Fcalls%2F01920138-bff6-7e03-a223-e6c2035b2f2c)
+
+You can change the suffix of the generated output file by using the `--suffix` flag.
+
+```bash
+python 03_eval_solutions.py --folder dataset/2023/round2 --run_samples --suffix "_fancy_agent.txt"
+```
+
+This tool is built so you can use it with your own fancy agentic LLM code. 
+
+> Everything is contained in the single file `03_eval_solutions.py` so you can bring this script on your own codebase.
+
+# Note
 
 This is a basic starter solution. Feel free to modify and improve upon it to create more sophisticated approaches for solving Hacker Cup problems.
 
