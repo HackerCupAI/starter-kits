@@ -30,7 +30,7 @@ class Problem(BaseModel):
     )
     code: str = Field(..., description="The path to the code file")
     input: str = Field(..., description="The path to the input file")
-    output: str = Field(..., description="The path to the output file")
+    output: str = Field(None, description="The path to the output file")
 
 
 def guess_code_file(problem_name: str, problem_dir: Path) -> Path:
@@ -45,6 +45,8 @@ def guess_code_file(problem_name: str, problem_dir: Path) -> Path:
 def load_problem(problem_name: str, problem_dir: Path) -> Problem:
     input = problem_dir / f"{problem_name}.in"
     output = problem_dir / f"{problem_name}.out"
+    if not os.path.exists(output):
+        output = None
     sample_input = problem_dir / f"{problem_name}_sample_input.txt"
     sample_output = problem_dir / f"{problem_name}_sample_output.txt"
     code = guess_code_file(problem_name, problem_dir)
