@@ -57,22 +57,6 @@ class Problem(BaseModel):
     def get_output(self) -> str:
         return self.output_path.read_text()
 
-    def save_code(self, code: str, code_path: Optional[str] = None, outfile_name: Optional[str] = None):
-        final_code = f"from pathlib import Path\ninput = Path('./{self.input_path.name}').read_text()\n\n"
-        code_name = f"{self.name}_generated.py"
-        code_path = Path(self.folder_path) / code_name if code_path is None else code_path
-        final_code += code
-        outfile_name = f"./{self.name}_generated.out" if outfile_name is None else outfile_name
-        final_code += f"\n\noutput = solve(input)\nPath('{outfile_name}').write_text(output)\n"
-        code_path.write_text(final_code)
-        return Path(code_path)
-
-    def save_output(self, output: str, outfile: Optional[str] = None):
-        outfile_name = f"{self.name}_generated.out"
-        outfile = Path(self.folder_path) / outfile_name if outfile is None else outfile
-        outfile.write_text(output)
-        return Path(outfile)
-
     @classmethod
     def from_name(cls, name: str, folder_path: Path):
         description_path = folder_path / f"{name}.md"
@@ -105,9 +89,9 @@ class Problem(BaseModel):
     def __str__(self):
         return (
             f"Problem: {self.name}\n"
-            f"Description: {self.problem_description[:50]}{'...' if len(self.problem_description) > 50 else ''}\n"
-            f"Sample Input: {self.sample_input[:50]}{'...' if len(self.sample_input) > 50 else ''}\n"
-            f"Sample Output: {self.sample_output[:50]}{'...' if len(self.sample_output) > 50 else ''}\n"
+            f"Description: {self.problem_description[:50]}...\n"
+            f"Sample Input: {self.sample_input[:50]}...\n"
+            f"Sample Output: {self.sample_output[:50]}...\n"
             f"Input Path: {self.input_path}\n"
             f"Output Path: {self.output_path}\n"
             f"Images: {len(self.images)} image(s)\n"
