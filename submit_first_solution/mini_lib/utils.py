@@ -1,6 +1,8 @@
 import asyncio
 import os
 import json
+import re
+
 import logging
 from pathlib import Path
 from typing import List
@@ -21,7 +23,7 @@ class TimeoutException(Exception):
 def setup_logger(debug = False, silence_openai = True):
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(
-        level=level, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+        level=level, format="%(message)s", datefmt="[%X]", handlers=[RichHandler(markup=True)]
     )
     # silence openai logger
     if silence_openai:
@@ -29,7 +31,6 @@ def setup_logger(debug = False, silence_openai = True):
         logging.getLogger("openai").setLevel(logging.WARNING)
         logging.getLogger("httpx").setLevel(logging.WARNING)
 
-import re
 
 def maybe_remove_backticks(solution: str) -> str:
     "Remove backticks from the solution"
@@ -79,10 +80,16 @@ def check_solution(expected: str, actual: str) -> dict:
     matches = compare_lines_with_tolerance(expected, actual)
     return {"matches": matches}
 
-async def run_subprocess(command: list, input_file: Path, output_file: Path, timeout: float):
-    """
-    Run a subprocess with the given command, input file, and output file.
-    """
+async def _run_subprocess(command: list, input_file: Path, output_file: Path, timeout: float):
+    """Run a subprocess with the given command, input file, and output file.
+    Parameters:
+    command (list): The command to execute as a list of arguments.
+    input_file (Path): The path to the input file.
+    output_file (Path): The path to the output file.
+    timeout (float): The maximum time to allow for the subprocess to run.
+    
+    Raises:
+        RuntimeError: If the subprocess fails or times out."""
     try:
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -100,49 +107,66 @@ async def run_subprocess(command: list, input_file: Path, output_file: Path, tim
         if process.returncode != 0:
             raise RuntimeError(f"Program execution failed: {stderr.decode()}")
 
-        logging.info(f"Output saved to {output_file}")
+        logging.debug(f"Output saved to {output_file}")
     except Exception as e:
-        raise RuntimeError(f"Error running subprocess: {str(e)}")
+        return RuntimeError(f"Error running subprocess: {str(e)}")
 
 async def run_python(program: Path, input_file: Path, output_file: Path, timeout: float = 10):
+    """Run a Python program with the given input file and output file.
+
+    Parameters:
+        program (Path): The path to the Python program to execute.
+        input_file (Path): The path to the input file.
+        output_file (Path): The path to the output file.
+        timeout (float): The maximum time to allow for the program to run.
+        
+    Raises:
+        RuntimeError: If there is an error running the Python program.
     """
-    Run a Python program with the given input file and output file.
-    """
-    await run_subprocess([sys.executable, str(program)], input_file, output_file, timeout)
+    await _run_subprocess([sys.executable, str(program)], input_file, output_file, timeout)
+
 
 async def run_cpp(cpp_file: Path, input_file: Path, output_file: Path, timeout: float = 10, cpp_version: int = 11):
-    """
-    Run a C++ program with the given input file and output file.
-    """
-    # Get the base name of the cpp file (without extension)
-    base_name = os.path.splitext(cpp_file.name)[0]
+    """Run a C++ program with the given input file and output file.
 
-    # Compile the C++ program
+    Parameters:
+        cpp_file (Path): The path to the C++ source file to compile and execute.
+        input_file (Path): The path to the input file.
+        output_file (Path): The path to the output file.
+        timeout (float): The maximum time to allow for the program to run.
+        cpp_version (int): The C++ standard version to use for compilation.
+        
+    Raises:
+        RuntimeError: If compilation fails or if there is an error running the C++ program.
+    """
+    
+    base_name = os.path.splitext(cpp_file.name)[0]
     compile_command = f"g++ {cpp_file} -std=c++{cpp_version} -o {base_name}"
     process = await asyncio.create_subprocess_shell(
         compile_command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
-    stdout, stderr = await process.communicate()
+    _, stderr = await process.communicate()
 
     if process.returncode != 0:
         raise RuntimeError(f"Compilation failed: {stderr.decode()}")
 
     try:
-        # Run the compiled program with input from file
-        await run_subprocess([f"./{base_name}"], input_file, output_file, timeout)
+        await _run_subprocess([f"./{base_name}"], input_file, output_file, timeout)
     finally:
-        # Clean up the compiled file
         if os.path.exists(base_name):
             os.remove(base_name)
 
 @weave.op
 async def run_program(code: Path, input: Path, output: Path, timeout: float = 10, cpp_version: int = 11):
+    """
+    Run the program with the given code and input file. Write the output to the given output file.
+    """
     try:
         if code.suffix == ".cpp":
-            logging.info(f"Running C++ program: {code}")
+            logging.debug(f"Running C++ program: {code}")
             await run_cpp(code, input, output, timeout, cpp_version)
         elif code.suffix == ".py":
-            logging.info(f"Running Python program: {code}")
+            logging.debug(f"Running Python program: {code}")
             await run_python(code, input, output, timeout)
         else:
             raise ValueError(f"Unsupported file type: {code}")

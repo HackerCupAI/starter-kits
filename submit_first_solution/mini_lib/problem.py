@@ -36,8 +36,8 @@ class Problem(BaseModel):
     folder_path: Path = Field(..., description="The path to the problem directory")
     name: str = Field(..., description="The name of the problem")
     problem_description: str = Field(..., description="The description of the problem")
-    sample_input: str = Field(..., description="The sample input of the problem")
-    sample_output: str = Field(..., description="The sample output of the problem")
+    sample_input: Path = Field(..., description="The path to the sample input of the problem")
+    sample_output: Path = Field(..., description="The path to the sample output of the problem")
     input_path: Path = Field(..., description="The path to the input file")
     output_path: Path = Field(..., description="The path to the output file")
     code: Optional[str] = None
@@ -50,6 +50,12 @@ class Problem(BaseModel):
         used_images = _find_used_images(self.problem_description, self.folder_path)
         self.problem_description = _replace_img_links(self.problem_description, used_images)
         self.images = [_encode_image(str(image_path)) for image_path in used_images]
+
+    def get_sample_input(self) -> str:
+        return self.sample_input.read_text()
+
+    def get_sample_output(self) -> str:
+        return self.sample_output.read_text()
 
     def get_input(self) -> str:
         return self.input_path.read_text()
@@ -79,8 +85,8 @@ class Problem(BaseModel):
         return cls(
             name=name,
             problem_description=description_path.read_text(),
-            sample_input=sample_input_path.read_text(),
-            sample_output=sample_output_path.read_text(),
+            sample_input=sample_input_path,
+            sample_output=sample_output_path,
             input_path=input_path,
             output_path=output_path if output_path else input_path.with_suffix('.out'),
             folder_path=input_path.parent,
