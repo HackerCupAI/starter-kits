@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 import json
+from typing import Optional
 import logging
 from tempfile import TemporaryDirectory
 
@@ -12,7 +13,7 @@ import instructor
 from pydantic import BaseModel, Field
 
 from mini_lib.problem import Problem
-from mini_lib.utils import maybe_remove_backticks, check_solution, setup_logger, run_program
+from mini_lib.utils import maybe_remove_backticks, check_correctness, setup_logger, run_program
 
 client = instructor.from_openai(openai.OpenAI())
 
@@ -30,7 +31,6 @@ class Solution(BaseModel):
 def call_model(messages, **kwargs):
     response_model = kwargs.pop("response_model", None)
     res = client.chat.completions.create(
-        model="gpt-4o",
         messages=messages,
         response_model=response_model,
         **kwargs
@@ -44,8 +44,9 @@ def call_model(messages, **kwargs):
 def generate_code(
     problem: Problem, 
     system_prompt: str, 
-    prompt_template: str, 
-    use_images: bool) -> str:
+    prompt_template: str,
+    model: str, 
+    use_images: bool = False) -> str:
     logging.info(f"Generating code solution for: {problem.name}")
 
     messages = [
@@ -61,7 +62,7 @@ def generate_code(
 
     # call model one first time to get the code
     logging.info("Generating initial analysis and solution")
-    out = call_model(messages=messages, response_model=None)
+    out = call_model(messages=messages, model=model, response_model=None)
     # call model second time to extract the code
     logging.info("  Extracting the code from the previous generation...")
     solution = call_model(
@@ -69,6 +70,7 @@ def generate_code(
             "role": "user",
             "content": f"Extract the relevant information from the following document and return it in valid JSON\n\n{out}",
             }], 
+        model="gpt-4o", # hard coded for the extraction
         response_model=Solution, 
         max_retries=2
     )
@@ -102,6 +104,11 @@ Create a python program that returns the correct output for the given input.
     g. We will run the program by calling `python3 program.py` so make sure it outputs the correct results.
 """
 
+class RunAndTestResult(BaseModel):
+    correct: bool = Field(..., description="Whether the generated output matches the ground truth output")
+    runnable: bool = Field(..., description="Whether the program can run without errors")
+    error: Optional[str] = Field(..., description="Error message if the program failed to run")
+
 
 @weave.op
 async def run_and_test(code: str, input_file: Path, output_file: Path, generated_output_file: Path, timeout: int = 30):
@@ -115,14 +122,20 @@ async def run_and_test(code: str, input_file: Path, output_file: Path, generated
         generated_output_file: The path to the file where the generated output will be saved.
         timeout: The timeout for the code execution.
     """
-    await run_program(code, input_file, generated_output_file, timeout=timeout)
-    res = check_solution(output_file.read_text(), generated_output_file.read_text())
-    return res
+    try:
+        await run_program(code, input_file, generated_output_file, timeout=timeout)
+    except Exception as e:
+        logging.error(f"Error running program: {e}")
+        return RunAndTestResult(matches=False, runnable=False, error=str(e))
+    
+    correct = check_correctness(output_file.read_text(), generated_output_file.read_text())
+    return RunAndTestResult(correct=correct, runnable=True, error=None)
 
 @dataclass
 class Args(simple_parsing.Serializable):
     problem_name: str = "cheeseburger_corollary_ch1" # name of the problem to solve
     folder_path: Path = Path("./dataset/2023/practice/") # path to the folder containing the problems
+    model: str = "gpt-4o" # openai model to use
     use_images: bool = False # set to True to use images in the prompt
     save_output: bool = True # set to True to save the output to a file
     debug: bool = False # set to True to see the debug logs
@@ -142,22 +155,23 @@ if __name__=="__main__":
         problem, 
         system_prompt=system_prompt, 
         prompt_template=prompt_template,
+        model=args.model,
         use_images=args.use_images)
     
     code_file = solution.save_code(problem.folder_path / (problem.name + "_generated.py"))
 
     generated_output_file = problem.folder_path / (problem.name + "_generated.out")
     logging.info("> Running and testing the solution on sample input/output...")
-    test_output = asyncio.run(run_and_test(
+    run_and_test_result = asyncio.run(run_and_test(
         code_file, 
         problem.sample_input, 
         problem.sample_output, 
         generated_output_file,
         timeout=args.timeout))
 
-    logging.info(f"> Test sample output: {test_output}")
+    logging.info(f"> Test sample output: {run_and_test_result}")
 
-    if test_output["matches"]:
+    if run_and_test_result.matches:
         logging.info("> Solution is correct!. Solving for full input...")
         asyncio.run(run_program(code_file, problem.input_path, generated_output_file, timeout=args.timeout))
         logging.info(f"Code file: [cyan]{code_file}[/cyan]\nOutput file: [cyan]{generated_output_file}[/cyan]")

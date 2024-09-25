@@ -75,10 +75,9 @@ def compare_lines_with_tolerance(expected: str, actual: str, tolerance: float = 
     return True
 
 @weave.op
-def check_solution(expected: str, actual: str) -> dict:
+def check_correctness(expected: str, actual: str) -> dict:
     "Check the solution against the expected output"
-    matches = compare_lines_with_tolerance(expected, actual)
-    return {"matches": matches}
+    return compare_lines_with_tolerance(expected, actual)
 
 async def _run_subprocess(command: list, input_file: Path, output_file: Path, timeout: float):
     """Run a subprocess with the given command, input file, and output file.
@@ -109,7 +108,7 @@ async def _run_subprocess(command: list, input_file: Path, output_file: Path, ti
 
         logging.debug(f"Output saved to {output_file}")
     except Exception as e:
-        return RuntimeError(f"Error running subprocess: {str(e)}")
+        raise RuntimeError(f"Error running subprocess: {str(e)}")
 
 async def run_python(program: Path, input_file: Path, output_file: Path, timeout: float = 10):
     """Run a Python program with the given input file and output file.
