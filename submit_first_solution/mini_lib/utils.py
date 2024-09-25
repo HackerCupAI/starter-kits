@@ -177,7 +177,7 @@ if __name__ == "__main__":
     # Test check_solution
     expected = "Case #1: YES\nCase #2: NO\nCase #3: YES"
     actual = "Case #1: YES\nCase #2: Yes\nCase #3: YES"
-    result = check_solution(expected, actual)
+    result = check_correctness(expected, actual)
     assert not result["matches"], "Expected no matches"
 
     # Test maybe_remove_backticks
