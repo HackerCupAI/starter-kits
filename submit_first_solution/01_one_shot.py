@@ -126,7 +126,7 @@ async def run_and_test(code: str, input_file: Path, output_file: Path, generated
         await run_program(code, input_file, generated_output_file, timeout=timeout)
     except Exception as e:
         logging.error(f"Error running program: {e}")
-        return RunAndTestResult(matches=False, runnable=False, error=str(e))
+        return RunAndTestResult(correct=False, runnable=False, error=str(e))
     
     correct = check_correctness(output_file.read_text(), generated_output_file.read_text())
     return RunAndTestResult(correct=correct, runnable=True, error=None)
@@ -171,7 +171,7 @@ if __name__=="__main__":
 
     logging.info(f"> Test sample output: {run_and_test_result}")
 
-    if run_and_test_result.matches:
+    if run_and_test_result.correct:
         logging.info("> Solution is correct!. Solving for full input...")
         asyncio.run(run_program(code_file, problem.input_path, generated_output_file, timeout=args.timeout))
         logging.info(f"Code file: [cyan]{code_file}[/cyan]\nOutput file: [cyan]{generated_output_file}[/cyan]")
