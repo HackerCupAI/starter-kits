@@ -1,28 +1,30 @@
 from pydantic import BaseModel, Field
+from pydantic.json_schema import SkipJsonSchema
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 
-class Solution(BaseModel):
-    problem_name: str = Field(..., description="The name of the problem")
-    problem_folder: str | Path = Field(..., description="The folder of the problem")
+class ExtractedSolution(BaseModel):
     solution_explanation: str = Field(..., description="Explanation of the solution to the problem")
     source_code: str = Field(..., description="Valid Python3 sourcecode to solve the problem.")
-    code_path: Optional[str] = Field(None, description="The path to the code file")
-    outfile: Optional[str] = Field(None, description="The path of the output file")
+    
+class Solution(ExtractedSolution):
+    problem_name: str = Field(..., description="The name of the problem")
+    problem_folder: Path = Field(..., description="The folder of the problem")
+    code_path: Optional[Path] = Field(None, description="The path to the code file")
+    outfile_path: Optional[Path] = Field(None, description="The path of the output file")
 
-    def save_code(self, code: str, code_path: Optional[str] = None, outfile: Optional[str] = None):
-        code_name = f"{self.problem_name}_generated.py"
-        code_path = Path(self.problem_folder) / code_name if code_path is None else code_path
-        outfile = f"./{self.problem_name}_generated.out" if outfile is None else outfile
-        code_path.write_text(code)
+    def model_post_init(self, __context: Any) -> None:
+        super().model_post_init(__context)
+        if self.code_path is None:
+            self.code_path = self.problem_folder / f"{self.problem_name}_generated.py"
+        if self.outfile_path is None:
+            self.outfile_path = self.problem_folder / f"{self.problem_name}_generated.out"
+
+    def save_code(self, code_path: Optional[Path]=None) -> Path:
+        code_path = self.code_path if code_path is None else code_path
+        code_path.write_text(self.source_code)
         return Path(code_path)
-
-    def save_output(self, output: str, outfile: Optional[str] = None, suffix: str = "_generated.out"):
-        outfile_name = f"{self.problem_name}{suffix}"
-        outfile = Path(self.problem_folder) / outfile_name if outfile is None else outfile
-        outfile.write_text(output)
-        return Path(outfile)
     
     def __str__(self):
         return (

@@ -4,7 +4,6 @@ from pathlib import Path
 import json
 from typing import Optional
 import logging
-from tempfile import TemporaryDirectory
 
 import openai
 import weave
@@ -13,32 +12,20 @@ import instructor
 from pydantic import BaseModel, Field
 
 from mini_lib.problem import Problem
+from mini_lib.solution import ExtractedSolution, Solution
 from mini_lib.utils import maybe_remove_backticks, check_correctness, setup_logger, run_program
 
 client = instructor.from_openai(openai.OpenAI())
 
-class Solution(BaseModel):
-    solution_explanation: str = Field(..., description="Explanation of the solution to the problem")
-    source_code: str = Field(..., description="Valid Python3 sourcecode to solve the problem.")
-
-    def save_code(self, out_file="solution.py"):
-        out_file = Path(out_file)
-        out_file.write_text(self.source_code)
-        return out_file
-
-
 @weave.op
 def call_model(messages, **kwargs):
-    response_model = kwargs.pop("response_model", None)
+    response_model = kwargs.pop("response_model", str)
     res = client.chat.completions.create(
         messages=messages,
         response_model=response_model,
         **kwargs
     )
-    if response_model is not None:
-        return res
-    else:
-        return res.choices[0].message.content
+    return res
 
 @weave.op
 def generate_code(
@@ -71,13 +58,15 @@ def generate_code(
             "content": f"Extract the relevant information from the following document and return it in valid JSON\n\n{out}",
             }], 
         model="gpt-4o", # hard coded for the extraction
-        response_model=Solution, 
+        response_model=ExtractedSolution, 
         max_retries=2
     )
-
-    # in case we have ```python stuff...`
-    solution.source_code = maybe_remove_backticks(solution.source_code)
-    return solution
+    return Solution(
+        source_code=maybe_remove_backticks(solution.source_code),
+        solution_explanation=solution.solution_explanation,
+        problem_name=problem.name, 
+        problem_folder=problem.folder_path,
+    )
 
 system_prompt = "You are an expert problem solver. Your task is creating the code to solve the problem at hand in python."
 
@@ -158,9 +147,9 @@ if __name__=="__main__":
         model=args.model,
         use_images=args.use_images)
     
-    code_file = solution.save_code(problem.folder_path / (problem.name + "_generated.py"))
-
+    code_file = solution.save_code()
     generated_output_file = problem.folder_path / (problem.name + "_generated.out")
+
     logging.info("> Running and testing the solution on sample input/output...")
     run_and_test_result = asyncio.run(run_and_test(
         code_file, 
