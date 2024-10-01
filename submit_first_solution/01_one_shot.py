@@ -1,31 +1,38 @@
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+import json
+from typing import Optional
 import logging
 
 import openai
 import weave
 import simple_parsing
+import instructor
+from pydantic import BaseModel, Field
 
 from mini_lib.problem import Problem
-from mini_lib.utils import maybe_remove_backticks, check_solution, setup_logger, run
+from mini_lib.solution import ExtractedSolution, Solution
+from mini_lib.utils import maybe_remove_backticks, check_correctness, setup_logger, run_program
 
-client = openai.OpenAI()
-
+client = instructor.from_openai(openai.OpenAI())
 
 @weave.op
 def call_model(messages, **kwargs):
-    return client.chat.completions.create(
-        model="gpt-4o",
+    response_model = kwargs.pop("response_model", str)
+    res = client.chat.completions.create(
         messages=messages,
+        response_model=response_model,
         **kwargs
-    ).choices[0].message.content
+    )
+    return res
 
 @weave.op
 def generate_code(
     problem: Problem, 
     system_prompt: str, 
-    prompt_template: str, 
-    extract_prompt: str,
+    prompt_template: str,
+    model: str, 
     use_images: bool = False) -> str:
     logging.info(f"Generating code solution for: {problem.name}")
 
@@ -34,78 +41,90 @@ def generate_code(
         {"role": "user", "content": [
             {"type": "text", "text": prompt_template.format(
                 problem_description=problem.problem_description,
-                sample_input=problem.sample_input,
-                sample_output=problem.sample_output,
+                sample_input=problem.get_sample_input(),
+                sample_output=problem.get_sample_output(),
             )}
         ] + ([{"type": "image_url", "image_url": {"url": img}} for img in problem.images] if use_images else [])}
     ]
 
     # call model one first time to get the code
-    out = call_model(messages=messages)
     logging.info("Generating initial analysis and solution")
-
-    # Let's make a second call to the model to extract the code from the response
-    messages.append({"role": "assistant", "content": out})
-    messages.append({"role": "user", "content": [
-        {"type": "text", 
-         "text": extract_prompt}
-    ]})
-
+    out = call_model(messages=messages, model=model, response_model=None)
     # call model second time to extract the code
-    solution = call_model(messages=messages)
-    logging.info("Extracting the solution from the previous generation...")
-
-    # in case we have ```python stuff...`
-    solution = maybe_remove_backticks(solution)
-    return solution
+    logging.info("  Extracting the code from the previous generation...")
+    solution = call_model(
+        messages=[{
+            "role": "user",
+            "content": f"Extract the relevant information from the following document and return it in valid JSON\n\n{out}",
+            }], 
+        model="gpt-4o", # hard coded for the extraction
+        response_model=ExtractedSolution, 
+        max_retries=2
+    )
+    return Solution(
+        source_code=maybe_remove_backticks(solution.source_code),
+        solution_explanation=solution.solution_explanation,
+        problem_name=problem.name, 
+        problem_folder=problem.folder_path,
+    )
 
 system_prompt = "You are an expert problem solver. Your task is creating the code to solve the problem at hand in python."
 
 prompt_template = """
-Problem: 
+## Problem: 
 {problem_description}
 
-Input: 
+## Input: 
 {sample_input}
 
-Output: 
+## Output: 
 {sample_output}
 
 Create a python program that returns the correct output for the given input. 
-The file should have a single `solve` method that has the following signature:
-input: [str]: The same Input provided above
-output [str]: The same Output provided above
 
-```python
-from tqdm import tqdm
-def solve(input: str) -> str: 
-```
+## Competition Guidelines:
+    a. Do not use any external libraries; stick to Python 3 standard library
+    b. Handle input and output using standard input/output (stdin/stdout)
+    c. Use helper functions to improve readability of the code.
+    c. Use the `input()` function to take input from stdin and print the output to stdout.
+    d. Do not add extra print statements otherwise it will fail the test cases.
+    e. Make sure your code passes all potential test cases, including edge cases
+    f. Follow the input/output format specified in the problem statement and the sample test cases.
+    g. We will run the program by calling `python3 program.py` so make sure it outputs the correct results.
 """
 
-extract_prompt = """
-Extract the code from the response. reply with the code only. Omit any additional example or explanation.
-- If the solution involves a for loop, please use `for sample in tqdm(range(samples))` to show progress.
-- The code should be a valid python program.
-- Get the `solve` function with the corresponding imports"""
+class RunAndTestResult(BaseModel):
+    correct: bool = Field(..., description="Whether the generated output matches the ground truth output")
+    runnable: bool = Field(..., description="Whether the program can run without errors")
+    error: Optional[str] = Field(..., description="Error message if the program failed to run")
+
 
 @weave.op
-def solve_problem(problem: Problem, use_images=False, timeout=60) -> dict:
-    code = generate_code(
-        problem, 
-        system_prompt=system_prompt, 
-        prompt_template=prompt_template, 
-        extract_prompt=extract_prompt, 
-        use_images=use_images)
-    input, output = problem.sample_input, problem.sample_output
-    generated_output = run(code, input=input, timeout=timeout) 
+async def run_and_test(code: str, input_file: Path, output_file: Path, generated_output_file: Path, timeout: int = 30):
+    """
+    Run the program and test the output against the sample output.
     
-    return {"code": code, "generated_output": generated_output, "expected_output": output}
+    Args:
+        code: The path to the code file.
+        input_file: The path to the input file.
+        output_file: The path to the ground truth output file.
+        generated_output_file: The path to the file where the generated output will be saved.
+        timeout: The timeout for the code execution.
+    """
+    try:
+        await run_program(code, input_file, generated_output_file, timeout=timeout)
+    except Exception as e:
+        logging.error(f"Error running program: {e}")
+        return RunAndTestResult(correct=False, runnable=False, error=str(e))
+    
+    correct = check_correctness(output_file.read_text(), generated_output_file.read_text())
+    return RunAndTestResult(correct=correct, runnable=True, error=None)
 
 @dataclass
 class Args(simple_parsing.Serializable):
     problem_name: str = "cheeseburger_corollary_ch1" # name of the problem to solve
     folder_path: Path = Path("./dataset/2023/practice/") # path to the folder containing the problems
-    weave_log: bool = False # set to True to log to weave
+    model: str = "gpt-4o" # openai model to use
     use_images: bool = False # set to True to use images in the prompt
     save_output: bool = True # set to True to save the output to a file
     debug: bool = False # set to True to see the debug logs
@@ -118,24 +137,32 @@ if __name__=="__main__":
 
     problem = Problem.from_name(args.problem_name, args.folder_path)
 
-    if args.weave_log: 
-        weave.init("hack-starter")
+    weave.init("hack-starter")
     
     logging.info("> Solving on sample input...")
-    problem_solution = solve_problem(problem, use_images=args.use_images, timeout=args.timeout)
-    matches = check_solution(problem_solution["expected_output"], problem_solution["generated_output"])
-    logging.info("Sample Matches:")
-    logging.info(matches)
+    solution = generate_code(
+        problem, 
+        system_prompt=system_prompt, 
+        prompt_template=prompt_template,
+        model=args.model,
+        use_images=args.use_images)
+    
+    code_file = solution.save_code()
+    generated_output_file = problem.folder_path / (problem.name + "_generated.out")
 
-    logging.info("> Solving on full input...")
-    expected_output = problem.get_output()
-    generated_output = run(problem_solution["code"], input=problem.get_input(), timeout=args.timeout) 
-    matches = check_solution(expected_output, generated_output)
-    logging.info("Final Matches:")
-    logging.info(matches)
+    logging.info("> Running and testing the solution on sample input/output...")
+    run_and_test_result = asyncio.run(run_and_test(
+        code_file, 
+        problem.sample_input, 
+        problem.sample_output, 
+        generated_output_file,
+        timeout=args.timeout))
 
-    if args.save_output:
-        logging.info("> Saving output to files")
-        problem.save_output(problem_solution["generated_output"])
-        problem.save_code(problem_solution["code"])
+    logging.info(f"> Test sample output: {run_and_test_result}")
 
+    if run_and_test_result.correct:
+        logging.info("> Solution is correct!. Solving for full input...")
+        asyncio.run(run_program(code_file, problem.input_path, generated_output_file, timeout=args.timeout))
+        logging.info(f"Code file: [cyan]{code_file}[/cyan]\nOutput file: [cyan]{generated_output_file}[/cyan]")
+    else:
+        logging.info("> Solution is incorrect!. Not running on full input.")

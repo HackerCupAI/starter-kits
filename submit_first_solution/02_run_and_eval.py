@@ -1,35 +1,41 @@
 import asyncio
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 import time
+from typing import Optional
+import logging
+from tempfile import TemporaryDirectory
 
 import openai
 import weave
 import simple_parsing
-from tqdm.asyncio import tqdm
+import instructor
+from pydantic import BaseModel, Field
 
-from mini_lib.problem import Problem
-from mini_lib.utils import maybe_remove_backticks, setup_logger, check_solution, arun
+from mini_lib.problem import Problem, find_problems
+from mini_lib.solution import Solution, ExtractedSolution
+from mini_lib.utils import maybe_remove_backticks, check_correctness, setup_logger, run_program
 
-client = openai.AsyncOpenAI()
+client = instructor.from_openai(openai.OpenAI())
 
 
 @weave.op
-async def call_model(messages, **kwargs):
-    out = await client.chat.completions.create(
-        model="gpt-4o",
+def call_model(messages, **kwargs):
+    response_model = kwargs.pop("response_model", str)
+    res = client.chat.completions.create(
         messages=messages,
+        response_model=response_model,
         **kwargs
     )
-    return out.choices[0].message.content
+    return res
+
 
 @weave.op
-async def generate_code(
+def generate_code(
     problem: Problem, 
     system_prompt: str, 
-    prompt_template: str, 
-    extract_prompt: str,
+    prompt_template: str,
+    model: str, 
     use_images: bool = False) -> str:
     logging.info(f"Generating code solution for: {problem.name}")
 
@@ -38,147 +44,135 @@ async def generate_code(
         {"role": "user", "content": [
             {"type": "text", "text": prompt_template.format(
                 problem_description=problem.problem_description,
-                sample_input=problem.sample_input,
-                sample_output=problem.sample_output,
+                sample_input=problem.get_sample_input(),
+                sample_output=problem.get_sample_output(),
             )}
         ] + ([{"type": "image_url", "image_url": {"url": img}} for img in problem.images] if use_images else [])}
     ]
 
     # call model one first time to get the code
-    out = await call_model(messages=messages)
     logging.info("Generating initial analysis and solution")
-
-    # Let's make a second call to the model to extract the code from the response
-    messages.append({"role": "assistant", "content": out})
-    messages.append({"role": "user", "content": [
-        {"type": "text", 
-         "text": extract_prompt}
-    ]})
-
+    out = call_model(messages=messages, model=model, response_model=None)
     # call model second time to extract the code
-    solution = await call_model(messages=messages)
-    logging.info("Extracting the solution from the previous generation...")
-
-    # in case we have ```python stuff...`
-    solution = maybe_remove_backticks(solution)
-    return solution
+    logging.info("  Extracting the code from the previous generation...")
+    solution = call_model(
+        messages=[{
+            "role": "user",
+            "content": f"Extract the relevant information from the following document and return it in valid JSON\n\n{out}",
+            }], 
+        model="gpt-4o", # hard coded for the extraction
+        response_model=ExtractedSolution, 
+        max_retries=2
+    )
+    return Solution(
+        source_code=maybe_remove_backticks(solution.source_code),
+        solution_explanation=solution.solution_explanation,
+        problem_name=problem.name, 
+        problem_folder=problem.folder_path,
+    )
 
 system_prompt = "You are an expert problem solver. Your task is creating the code to solve the problem at hand in python."
 
 prompt_template = """
-Problem: 
+## Problem: 
 {problem_description}
 
-Input: 
+## Input: 
 {sample_input}
 
-Output: 
+## Output: 
 {sample_output}
 
 Create a python program that returns the correct output for the given input. 
-Make the code efficient and fast, so we can solve large inputs.
-The file should have a single `solve` method that has the following signature:
-input: [str]: The same Input provided above
-output [str]: The same Output provided above
 
-```python
-from tqdm import tqdm
-def solve(input: str) -> str: 
-```
+## Competition Guidelines:
+    a. Do not use any external libraries; stick to Python 3 standard library
+    b. Handle input and output using standard input/output (stdin/stdout)
+    c. Use helper functions to improve readability of the code.
+    c. Use the `input()` function to take input from stdin and print the output to stdout.
+    d. Do not add extra print statements otherwise it will fail the test cases.
+    e. Make sure your code passes all potential test cases, including edge cases
+    f. Follow the input/output format specified in the problem statement and the sample test cases.
+    g. We will run the program by calling `python3 program.py` so make sure it outputs the correct results.
 """
 
-extract_prompt = """
-Extract the code from the response. reply with the code only. Omit any additional example or explanation.
-- If the solution involves a for loop, please use `for sample in tqdm(range(samples))` to show progress.
-- The code should be a valid python program.
-- Get the `solve` function with the corresponding imports"""
+class RunAndTestResult(BaseModel):
+    correct: bool = Field(..., description="Whether the generated output matches the ground truth output")
+    runnable: bool = Field(..., description="Whether the program can run without errors")
+    error: Optional[str] = Field(..., description="Error message if the program failed to run")
+
+
+@weave.op
+async def run_and_test(code: str, input_file: Path, output_file: Path, generated_output_file: Path, timeout: int = 30):
+    """
+    Run the program and test the output against the sample output.
+    
+    Args:
+        code: The path to the code file.
+        input_file: The path to the input file.
+        output_file: The path to the ground truth output file.
+        generated_output_file: The path to the file where the generated output will be saved.
+        timeout: The timeout for the code execution.
+    """
+    try:
+        await run_program(code, input_file, generated_output_file, timeout=timeout)
+    except Exception as e:
+        logging.error(f"Error running program: {e}")
+        return RunAndTestResult(correct=False, runnable=False, error=str(e))
+    
+    correct = check_correctness(output_file.read_text(), generated_output_file.read_text())
+    return RunAndTestResult(correct=correct, runnable=True, error=None)
+
 
 @dataclass
 class Args(simple_parsing.Serializable):
     folder_path: Path = Path("./dataset/2023/practice") # path to the folder containing the problems
-    weave_log: bool = False # set to True to log to weave
-    weave_eval: bool = False # set to True to evaluate the code
     max_num_problems: int = 5 # maximum number of problems to evaluate
-    on_sample: bool = True # run evaluation on sample inputs/outputs
+    model: str = "gpt-4o" # openai model to use
     use_images: bool = False # set to True to use images in the prompt
-    save_output: bool = True # set to True to save the output to a file
     debug: bool = False # set to True to see the debug logs
     timeout: int = 60 # timeout for the code execution
 
 if __name__=="__main__":
     args = simple_parsing.parse(Args)
+
     setup_logger(args.debug)
+
     logging.info(f"Parsed args: {args}")
     t0 = time.perf_counter()
 
-    problems = Problem.find_all(args.folder_path)[:args.max_num_problems] # dataset
+    problems = find_problems(args.folder_path)[:args.max_num_problems] # dataset
+    logging.info(f"Found {len(problems)} problems")
 
-    if args.weave_log: weave.init("hack-starter")
+    weave.init("hack-starter")
 
     @weave.op
-    async def solve_problem(problem: Problem, on_sample=args.on_sample) -> dict:
-        code = await generate_code(
+    async def solve_problem(problem: Problem) -> dict:
+        """
+        Solve the problem and return the result of the run and test.
+        """
+        solution = generate_code(
             problem, 
             system_prompt=system_prompt, 
-            prompt_template=prompt_template, 
-            extract_prompt=extract_prompt, 
+            prompt_template=prompt_template,
+            model=args.model,
             use_images=args.use_images)
-        if on_sample:
-            input, output = problem.sample_input, problem.sample_output
-        else:
-            input, output = problem.get_input(), problem.get_output()
-        generated_output = await arun(code, input=input, timeout=args.timeout) 
-        if args.save_output:
-            problem.save_output(generated_output)
-            problem.save_code(code)
-        return {"code": code, "generated_output": generated_output, "expected_output": output}
-
-    def match(model_output: str):
-        matches = check_solution(model_output["expected_output"], model_output["generated_output"])
-        return matches
-
-
-    if args.weave_eval:
-        dataset = [{"problem": problem} for problem in problems]
-        evaluation = weave.Evaluation(dataset=dataset, scorers=[match])
-        asyncio.run(evaluation.evaluate(solve_problem))
-    else:
-        @weave.op
-        async def solve_one(problem):
-            try:
-                model_output = await solve_problem(problem)
-                matches = match(model_output)
-                logging.info(f"Problem {problem.name} results: {matches}")
-                return {"runs": "✅", "error": None, **matches}
-            except Exception as e:
-                logging.error(f"Problem {problem.name} failed with error: {e}")
-                return {"runs": "❌", "error": str(e), "matches": -1, "total": -1, "offending_cases": []}
-
-        @weave.op
-        async def evaluate():
-            tasks = [solve_one(problem) for problem in problems]
-            eval_results = await tqdm.gather(*tasks, desc="Solving problems...")
-            return eval_results
         
-        eval_results = asyncio.run(evaluate())
+        code_file = solution.save_code()
+        generated_output_file = problem.folder_path / (problem.name + "_generated.out")
+        run_and_test_result = await run_and_test(
+            code_file, 
+            problem.sample_input, 
+            problem.sample_output, 
+            generated_output_file,
+            timeout=args.timeout)
+        return run_and_test_result
 
-        # let's format the results in a pandas dataframe
-        import pandas as pd
-        from tabulate import tabulate
 
-        df = pd.DataFrame([
-            {
-                "problem": problem.name,
-                "runs": result["runs"],
-                "error": result["error"],
-                "matches": result["matches"],
-                "offending_cases": len(result["offending_cases"]),
-                "total": result["total"],
-                "valid": "✅" if result["matches"] == result["total"] else "❌"
-            }
-            for problem, result in zip(problems, eval_results)
-        ])
-        logging.info("Evaluation results:")
-        table = tabulate(df, headers='keys', tablefmt='pretty', showindex=False)
-        print(table)
-        logging.info(f"Evaluation took {time.perf_counter() - t0:.2f} seconds")
+    def score(model_output: str):
+        return model_output
+
+
+    dataset = [{"problem": problem} for problem in problems]
+    evaluation = weave.Evaluation(dataset=dataset, scorers=[score])
+    asyncio.run(evaluation.evaluate(solve_problem))

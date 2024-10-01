@@ -1,6 +1,6 @@
 import base64
 import re
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 import logging
 from pathlib import Path
 from typing import Optional, List
@@ -32,17 +32,16 @@ def _replace_img_links(description_text: str, image_paths: list[Path]) -> str:
     
     return description_text
 
-@dataclass
-class Problem:
-    name: str
-    problem_description: str
-    sample_input: str
-    sample_output: str
-    input_path: Path # this is sometimes a big file
-    output_path: Path # this is sometimes a big file
-    folder_path: Path
+class Problem(BaseModel):
+    folder_path: Path = Field(..., description="The path to the problem directory")
+    name: str = Field(..., description="The name of the problem")
+    problem_description: str = Field(..., description="The description of the problem")
+    sample_input: Path = Field(..., description="The path to the sample input of the problem")
+    sample_output: Path = Field(..., description="The path to the sample output of the problem")
+    input_path: Path = Field(..., description="The path to the input file")
+    output_path: Path = Field(..., description="The path to the output file")
     code: Optional[str] = None
-    images: list[str] = field(default_factory=list)
+    images: list[str] = Field(default_factory=list)
 
     def __post_init__(self):
         self._process_description_and_images()
@@ -52,27 +51,17 @@ class Problem:
         self.problem_description = _replace_img_links(self.problem_description, used_images)
         self.images = [_encode_image(str(image_path)) for image_path in used_images]
 
+    def get_sample_input(self) -> str:
+        return self.sample_input.read_text()
+
+    def get_sample_output(self) -> str:
+        return self.sample_output.read_text()
+
     def get_input(self) -> str:
         return self.input_path.read_text()
 
     def get_output(self) -> str:
         return self.output_path.read_text()
-
-    def save_code(self, code: str, code_path: Optional[str] = None, outfile_name: Optional[str] = None):
-        final_code = f"from pathlib import Path\ninput = Path('./{self.input_path.name}').read_text()\n\n"
-        code_name = f"{self.name}_generated.py"
-        code_path = Path(self.folder_path) / code_name if code_path is None else code_path
-        final_code += code
-        outfile_name = f"./{self.name}_generated.out" if outfile_name is None else outfile_name
-        final_code += f"\n\noutput = solve(input)\nPath('{outfile_name}').write_text(output)\n"
-        code_path.write_text(final_code)
-        return Path(code_path)
-
-    def save_output(self, output: str, outfile: Optional[str] = None):
-        outfile_name = f"{self.name}_generated.out"
-        outfile = Path(self.folder_path) / outfile_name if outfile is None else outfile
-        outfile.write_text(output)
-        return Path(outfile)
 
     @classmethod
     def from_name(cls, name: str, folder_path: Path):
@@ -92,48 +81,45 @@ class Problem:
 
     @classmethod
     def from_files(cls, name: str, description_path: Path, sample_input_path: Path, 
-                   sample_output_path: Path, input_path: Path):
+                   sample_output_path: Path, input_path: Path, output_path: Path = None):
         return cls(
             name=name,
             problem_description=description_path.read_text(),
-            sample_input=sample_input_path.read_text(),
-            sample_output=sample_output_path.read_text(),
+            sample_input=sample_input_path,
+            sample_output=sample_output_path,
             input_path=input_path,
-            output_path=input_path.with_suffix('.out'),
+            output_path=output_path if output_path else input_path.with_suffix('.out'),
             folder_path=input_path.parent,
         )
 
-    @classmethod
-    def find_all(cls, folder_path: Path) -> List['Problem']:
-        problems = []
-        
-        # Find all markdown files in the folder
-        md_files = folder_path.rglob('*.md')
-        
-        for md_file in md_files:
-            # Skip files that end with '_sol.md' as they might be solution files
-            if md_file.stem.endswith('_sol'):
-                continue
-            
-            problem_name = md_file.stem
-            try:
-                problem = cls.from_name(problem_name, md_file.parent)
-                problems.append(problem)
-            except FileNotFoundError as e:
-                print(f"Warning: Couldn't create problem from {problem_name}. Error: {e}")
-        logging.info(f"Found {len(problems)} problems in folder: {folder_path}")
-        return problems
+    def __str__(self):
+        return (
+            f"Problem: {self.name}\n"
+            f"Description: {self.problem_description[:50]}...\n"
+            f"Sample Input: {self.sample_input[:50]}...\n"
+            f"Sample Output: {self.sample_output[:50]}...\n"
+            f"Input Path: {self.input_path}\n"
+            f"Output Path: {self.output_path}\n"
+            f"Images: {len(self.images)} image(s)\n"
+        )
+    
+def find_problems(folder: Path) -> list[dict]:
+    """
+    Find all the problems in the given folder.
+    """
+    problems = []
 
-
-    def __repr__(self):
-        return f"""Problem: {self.name}
-    Description: {self.problem_description[:50]}...
-    Sample Input: {self.sample_input[:50]}...
-    Sample Output: {self.sample_output[:50]}...
-    Input Path: {self.input_path}
-    Output Path: {self.output_path}
-    Images: {len(self.images)} image(s)
-"""
+    # search for all files ending in .in
+    input_files = list(folder.rglob("**/*.in"))
+    for input_file in input_files:
+        try:
+            problem_name = input_file.stem
+            problem_folder = input_file.parent
+            problems.append(Problem.from_name(problem_name, problem_folder))
+        except Exception as e:
+            logging.error(f"Error loading problem {problem_name}: {e}")
+    logging.info(f"Found {len(problems)} problems")
+    return problems
 
 
 if __name__ == "__main__":
@@ -149,6 +135,6 @@ if __name__ == "__main__":
 
     # load all problems in folder
     folder_path = Path("../dataset/2023/")
-    problems = Problem.find_all(folder_path)
+    problems = find_problems(folder_path)
     print(f"Found {len(problems)} problems in folder: {folder_path}")
-    assert len(problems) == 29
+    assert len(problems) == 29, f"Expected 29 problems, got {len(problems)}"
