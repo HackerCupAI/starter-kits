@@ -32,6 +32,13 @@ def _replace_img_links(description_text: str, image_paths: list[Path]) -> str:
     
     return description_text
 
+def _name_to_snake_case(name: str) -> str:
+    name = re.sub(r'(?<!^)(?=[A-Z])', '_', name)  # Add underscore before capital letters
+    name = name.replace(" ", "_")  # Replace spaces with underscores
+    name = name.lower()  # Convert everything to lowercase
+    # Make sure double underscores are reduced to single, if needed
+    return re.sub(r'_+', '_', name)
+
 class Problem(BaseModel):
     folder_path: Path = Field(..., description="The path to the problem directory")
     name: str = Field(..., description="The name of the problem")
@@ -45,6 +52,7 @@ class Problem(BaseModel):
 
     def __post_init__(self):
         self._process_description_and_images()
+        self.name = _name_to_snake_case(self.name)
 
     def _process_description_and_images(self):
         used_images = _find_used_images(self.problem_description, self.folder_path)
@@ -64,12 +72,25 @@ class Problem(BaseModel):
         return self.output_path.read_text()
 
     @classmethod
-    def from_name(cls, name: str, folder_path: Path):
-        description_path = folder_path / f"{name}.md"
-        input_path = folder_path / f"{name}.in"
-        output_path = folder_path / f"{name}.out"
-        sample_input_path = folder_path / f"{name}_sample_input.txt"
-        sample_output_path = folder_path / f"{name}_sample_output.txt"
+    def from_name(cls, name: str, base_path: Path):
+        # Detect if we're using the new folder structure
+        new_structure_path = base_path / name
+        if new_structure_path.is_dir():
+            # New folder-naming based structure
+            description_path = new_structure_path / "statement.txt"
+            input_path = new_structure_path / "full_in.txt"
+            output_path = new_structure_path / "full_out.txt"
+            sample_input_path = new_structure_path / "sample_in.txt"
+            sample_output_path = new_structure_path / "sample_out.txt"
+            folder_path = new_structure_path
+        else:
+            # Original flat file structure
+            description_path = base_path / f"{name}.md"
+            input_path = base_path / f"{name}.in"
+            output_path = base_path / f"{name}.out"
+            sample_input_path = base_path / f"{name}_sample_input.txt"
+            sample_output_path = base_path / f"{name}_sample_output.txt"
+            folder_path = base_path
 
         return cls.from_files(
             name=name,
@@ -77,11 +98,14 @@ class Problem(BaseModel):
             sample_input_path=sample_input_path,
             sample_output_path=sample_output_path,
             input_path=input_path,
+            output_path=output_path,
+            folder_path=folder_path,
         )
 
     @classmethod
     def from_files(cls, name: str, description_path: Path, sample_input_path: Path, 
-                   sample_output_path: Path, input_path: Path, output_path: Path = None):
+                   sample_output_path: Path, input_path: Path, output_path: Path = None,
+                   folder_path: Path = None):
         return cls(
             name=name,
             problem_description=description_path.read_text(),
@@ -89,35 +113,49 @@ class Problem(BaseModel):
             sample_output=sample_output_path,
             input_path=input_path,
             output_path=output_path if output_path else input_path.with_suffix('.out'),
-            folder_path=input_path.parent,
+            folder_path=folder_path if folder_path else input_path.parent,
         )
 
     def __str__(self):
         return (
             f"Problem: {self.name}\n"
             f"Description: {self.problem_description[:50]}...\n"
-            f"Sample Input: {self.sample_input[:50]}...\n"
-            f"Sample Output: {self.sample_output[:50]}...\n"
-            f"Input Path: {self.input_path}\n"
-            f"Output Path: {self.output_path}\n"
+            f"Sample Input: {self.sample_input.name}\n"
+            f"Sample Output: {self.sample_output.name}\n"
+            f"Input Path: {self.input_path.name}\n"
+            f"Output Path: {self.output_path.name}\n"
             f"Images: {len(self.images)} image(s)\n"
         )
     
-def find_problems(folder: Path) -> list[dict]:
+def find_problems(base_path: Path) -> list[Problem]:
     """
-    Find all the problems in the given folder.
+    Find all the problems in the given base path, supporting both old and new folder structures.
     """
     problems = []
 
-    # search for all files ending in .in
-    input_files = list(folder.rglob("**/*.in"))
-    for input_file in input_files:
-        try:
-            problem_name = input_file.stem
-            problem_folder = input_file.parent
-            problems.append(Problem.from_name(problem_name, problem_folder))
-        except Exception as e:
-            logging.error(f"Error loading problem {problem_name}: {e}")
+    # Check if base_path contains problem directories (new structure)
+    has_problem_dirs = any(entry.is_dir() for entry in base_path.iterdir())
+    if has_problem_dirs:
+        # New folder-naming based structure
+        for problem_dir in base_path.iterdir():
+            if problem_dir.is_dir():
+                problem_name = problem_dir.name
+                try:
+                    problem = Problem.from_name(problem_name, base_path)
+                    problems.append(problem)
+                except Exception as e:
+                    logging.error(f"Error loading problem '{problem_name}': {e}")
+    else:
+        # Original flat file structure
+        problem_files = list(base_path.glob("*.in"))
+        problem_names = [f.stem for f in problem_files]
+        for problem_name in problem_names:
+            try:
+                problem = Problem.from_name(problem_name, base_path)
+                problems.append(problem)
+            except Exception as e:
+                logging.error(f"Error loading problem '{problem_name}': {e}")
+
     logging.info(f"Found {len(problems)} problems")
     return problems
 
@@ -134,7 +172,16 @@ if __name__ == "__main__":
 
 
     # load all problems in folder
-    folder_path = Path("../dataset/2023/")
+    folder_path = Path("../dataset/2023/practice")
     problems = find_problems(folder_path)
     print(f"Found {len(problems)} problems in folder: {folder_path}")
-    assert len(problems) == 29, f"Expected 29 problems, got {len(problems)}"
+    assert len(problems) == 5, f"Expected 5 problems, got {len(problems)}"
+
+    # load all problems in folder
+    folder_path = Path("../dataset/2024/practice")
+    problems = find_problems(folder_path)
+    print(f"Found {len(problems)} problems in folder: {folder_path}")
+    assert len(problems) == 5, f"Expected 5 problems, got {len(problems)}"
+
+    assert _name_to_snake_case("cheeseburger_corollary_ch1") == "cheeseburger_corollary_ch1"
+    assert _name_to_snake_case("Wildcard Submissions_generated.out") == "wildcard_submissions_generated.out"

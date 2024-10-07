@@ -39,16 +39,27 @@ def generate_code(
     use_images: bool = False) -> str:
     logging.info(f"Generating code solution for: {problem.name}")
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": [
-            {"type": "text", "text": prompt_template.format(
+
+
+    if "o1" in model:
+        messages = [
+            {"role": "user", "content": system_prompt + "\n\n" + prompt_template.format(
                 problem_description=problem.problem_description,
                 sample_input=problem.get_sample_input(),
                 sample_output=problem.get_sample_output(),
             )}
-        ] + ([{"type": "image_url", "image_url": {"url": img}} for img in problem.images] if use_images else [])}
-    ]
+        ]
+    else:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": [
+                {"type": "text", "text": prompt_template.format(
+                    problem_description=problem.problem_description,
+                sample_input=problem.get_sample_input(),
+                    sample_output=problem.get_sample_output(),
+                )}
+            ] + ([{"type": "image_url", "image_url": {"url": img}} for img in problem.images] if use_images else [])}
+        ]
 
     # call model one first time to get the code
     logging.info("Generating initial analysis and solution")
