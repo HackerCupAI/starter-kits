@@ -3,7 +3,9 @@ import re
 from pydantic import BaseModel, Field
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, Any
+
+from .utils import _name_to_snake_case
 
 def _encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -32,13 +34,6 @@ def _replace_img_links(description_text: str, image_paths: list[Path]) -> str:
     
     return description_text
 
-def _name_to_snake_case(name: str) -> str:
-    name = re.sub(r'(?<!^)(?=[A-Z])', '_', name)  # Add underscore before capital letters
-    name = name.replace(" ", "_")  # Replace spaces with underscores
-    name = name.lower()  # Convert everything to lowercase
-    # Make sure double underscores are reduced to single, if needed
-    return re.sub(r'_+', '_', name)
-
 class Problem(BaseModel):
     folder_path: Path = Field(..., description="The path to the problem directory")
     name: str = Field(..., description="The name of the problem")
@@ -50,7 +45,7 @@ class Problem(BaseModel):
     code: Optional[str] = None
     images: list[str] = Field(default_factory=list)
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self._process_description_and_images()
         self.name = _name_to_snake_case(self.name)
 
@@ -101,6 +96,23 @@ class Problem(BaseModel):
             output_path=output_path,
             folder_path=folder_path,
         )
+    
+    def load_code(self) -> Path:
+        "Guess and load the code file for the problem"
+        is_2024_problem = _name_to_snake_case(self.folder_path.stem) == self.name
+        if is_2024_problem:
+            for file in self.folder_path.glob("*.cpp"):
+                return file
+            for file in self.folder_path.glob("*.py"):
+                return file
+        else:
+            if (self.folder_path / f"{self.name}.cpp").exists():
+                return self.folder_path / f"{self.name}.cpp"
+            elif (self.folder_path / f"{self.name}.py").exists():
+                return self.folder_path / f"{self.name}.py"
+            else:
+                raise ValueError(f"No code file found for problem {self.name}")
+
 
     @classmethod
     def from_files(cls, name: str, description_path: Path, sample_input_path: Path, 
@@ -182,6 +194,3 @@ if __name__ == "__main__":
     problems = find_problems(folder_path)
     print(f"Found {len(problems)} problems in folder: {folder_path}")
     assert len(problems) == 5, f"Expected 5 problems, got {len(problems)}"
-
-    assert _name_to_snake_case("cheeseburger_corollary_ch1") == "cheeseburger_corollary_ch1"
-    assert _name_to_snake_case("Wildcard Submissions_generated.out") == "wildcard_submissions_generated.out"

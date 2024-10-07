@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from mini_lib.problem import Problem, find_problems
 from mini_lib.solution import Solution, ExtractedSolution
-from mini_lib.utils import maybe_remove_backticks, check_correctness, setup_logger, run_program
+from mini_lib.utils import maybe_remove_backticks, check_correctness, setup_logger, run_program, prepare_problems
 
 client = instructor.from_openai(openai.OpenAI())
 
@@ -151,6 +151,9 @@ if __name__=="__main__":
 
     logging.info(f"Parsed args: {args}")
     t0 = time.perf_counter()
+
+    logging.info(f"Preparing problems...")
+    prepare_problems(args.folder_path)
 
     problems = find_problems(args.folder_path)[:args.max_num_problems] # dataset
     logging.info(f"Found {len(problems)} problems")

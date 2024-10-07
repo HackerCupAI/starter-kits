@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List
 import math
 import sys
+
 from rich.logging import RichHandler
 
 import weave
@@ -173,12 +174,38 @@ async def run_program(code: Path, input: Path, output: Path, timeout: float = 10
         raise e
     return
 
+def _name_to_snake_case(name: str) -> str:
+    name = re.sub(r'\(|\)', '', name)  # Remove parentheses
+    name = re.sub(r'(?<!^)(?=[A-Z])', '_', name)  # Add underscore before capital letters
+    name = name.replace(" ", "_")  # Replace spaces with underscores
+    name = name.lower()  # Convert everything to lowercase
+    # Make sure double underscores are reduced to single, if needed
+    return re.sub(r'_+', '_', name)
+
+def sanitize_name(file_or_folder: Path) -> str:
+    "Rename the file or folder to snake case, replacing spaces with underscores and removing special characters"
+    name = _name_to_snake_case(file_or_folder.name)
+    new_name = file_or_folder.parent / name
+    if new_name.exists():
+        return new_name
+    file_or_folder.rename(new_name)
+    logging.info(f"Renamed {file_or_folder} to {new_name}")
+    return new_name
+
+def prepare_problems(folder: Path):
+    "Rename the files and folders in the given folder to snake case"
+    folder = sanitize_name(folder)
+    for file in folder.rglob("**/*"):
+        sanitize_name(file)
+
 if __name__ == "__main__":
+
+    setup_logger(debug=True)
     # Test check_solution
     expected = "Case #1: YES\nCase #2: NO\nCase #3: YES"
     actual = "Case #1: YES\nCase #2: Yes\nCase #3: YES"
     result = check_correctness(expected, actual)
-    assert not result["matches"], "Expected no matches"
+    assert not result, "Expected no matches"
 
     # Test maybe_remove_backticks
     assert maybe_remove_backticks("print('hello')\n```") == "print('hello')"
@@ -186,6 +213,20 @@ if __name__ == "__main__":
     assert maybe_remove_backticks("```python\nprint('hello')") == "print('hello')"
     assert maybe_remove_backticks("```python\nprint('hello')\n```") == "print('hello')"
 
+    # Test _name_to_snake_case
+    assert _name_to_snake_case("cheeseburger_corollary_ch1") == "cheeseburger_corollary_ch1"
+    assert _name_to_snake_case("Wildcard Submissions_generated.out") == "wildcard_submissions_generated.out"
+
+    # Test sanitize_name
+    import tempfile
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dummy_folder = Path(temp_dir) / "Dummy folder"
+        dummy_folder.mkdir()
+        dummy_file = dummy_folder / "Dummy File.txt"
+        dummy_file.write_text("Dummy content")
+        prepare_problems(dummy_folder)
+        assert (Path(temp_dir) / "dummy_folder" / "dummy_file.txt").exists()  #one-shot check
+    
     # Test run_python
     async def test_run_python():
         code = Path("test_program.py")
