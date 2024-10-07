@@ -52,6 +52,7 @@ python 01_one_shot.py --problem_name road_to_nutella --folder_path "./dataset/20
 # 2024 round 1
 python 01_one_shot.py  --problem_name "Prime Subtractorization" --folder_path dataset/2024/round1
 ```
+> Note that 2024 has a different folder structure with one problem per folder.
 
 This script will:
 - Load the problem from the specified folder
@@ -59,7 +60,7 @@ This script will:
 - Print the evaluation results
 
 Some key params are:
-- `--on_sample`: Evaluate the solution on the provided sample (default is the actual competition input/output)
+- `--model`: OpenAI model to use (default is "gpt-4o")
 - `--timeout`: Timeout for the evaluation (default is 60 seconds)
 
 
@@ -74,15 +75,6 @@ You can customize the behavior of the solution generator by modifying:
 ## Weave Logging Support
 
 Debugging can be tricky when interacting with AI models. Weave logging support is provided to help with this.
-
-```bash
-# 2023 practice problem
-python 01_one_shot.py --problem_name road_to_nutella --folder_path "./dataset/2023/practice/" --weave_log
-
-# 2024 round 1
-python 01_one_shot.py  --problem_name "Prime Subtractorization" --folder_path dataset/2024/round1
-```
-
 
 ![Weave Logging](./weave_trace.png)
 
