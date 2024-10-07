@@ -32,6 +32,13 @@ def _replace_img_links(description_text: str, image_paths: list[Path]) -> str:
     
     return description_text
 
+def _name_to_snake_case(name: str) -> str:
+    name = re.sub(r'(?<!^)(?=[A-Z])', '_', name)  # Add underscore before capital letters
+    name = name.replace(" ", "_")  # Replace spaces with underscores
+    name = name.lower()  # Convert everything to lowercase
+    # Make sure double underscores are reduced to single, if needed
+    return re.sub(r'_+', '_', name)
+
 class Problem(BaseModel):
     folder_path: Path = Field(..., description="The path to the problem directory")
     name: str = Field(..., description="The name of the problem")
@@ -45,6 +52,7 @@ class Problem(BaseModel):
 
     def __post_init__(self):
         self._process_description_and_images()
+        self.name = _name_to_snake_case(self.name)
 
     def _process_description_and_images(self):
         used_images = _find_used_images(self.problem_description, self.folder_path)
@@ -112,27 +120,42 @@ class Problem(BaseModel):
         return (
             f"Problem: {self.name}\n"
             f"Description: {self.problem_description[:50]}...\n"
-            f"Sample Input: {self.sample_input[:50]}...\n"
-            f"Sample Output: {self.sample_output[:50]}...\n"
-            f"Input Path: {self.input_path}\n"
-            f"Output Path: {self.output_path}\n"
+            f"Sample Input: {self.sample_input.name}\n"
+            f"Sample Output: {self.sample_output.name}\n"
+            f"Input Path: {self.input_path.name}\n"
+            f"Output Path: {self.output_path.name}\n"
             f"Images: {len(self.images)} image(s)\n"
         )
     
-def find_problems(round_folder: Path) -> list[Problem]:
+def find_problems(base_path: Path) -> list[Problem]:
     """
-    Find all the problems in the given round folder.
+    Find all the problems in the given base path, supporting both old and new folder structures.
     """
     problems = []
 
-    for problem_dir in round_folder.iterdir():
-        if problem_dir.is_dir():
-            problem_name = problem_dir.name
+    # Check if base_path contains problem directories (new structure)
+    has_problem_dirs = any((base_path / entry).is_dir() for entry in base_path.iterdir())
+    if has_problem_dirs:
+        # New folder-naming based structure
+        for problem_dir in base_path.iterdir():
+            if problem_dir.is_dir():
+                problem_name = problem_dir.name
+                try:
+                    problem = Problem.from_name(problem_name, base_path)
+                    problems.append(problem)
+                except Exception as e:
+                    logging.error(f"Error loading problem '{problem_name}': {e}")
+    else:
+        # Original flat file structure
+        problem_files = list(base_path.glob("*.in"))
+        problem_names = [f.stem for f in problem_files]
+        for problem_name in problem_names:
             try:
-                problem = Problem.from_name(problem_name, round_folder)
+                problem = Problem.from_name(problem_name, base_path)
                 problems.append(problem)
             except Exception as e:
-                logging.error(f"Error loading problem {problem_name}: {e}")
+                logging.error(f"Error loading problem '{problem_name}': {e}")
+
     logging.info(f"Found {len(problems)} problems")
     return problems
 
@@ -149,7 +172,10 @@ if __name__ == "__main__":
 
 
     # load all problems in folder
-    folder_path = Path("../dataset/2023/")
+    folder_path = Path("../dataset/2023/practice")
     problems = find_problems(folder_path)
     print(f"Found {len(problems)} problems in folder: {folder_path}")
-    assert len(problems) == 29, f"Expected 29 problems, got {len(problems)}"
+    assert len(problems) == 5, f"Expected 5 problems, got {len(problems)}"
+
+    assert _name_to_snake_case("cheeseburger_corollary_ch1") == "cheeseburger_corollary_ch1"
+    assert _name_to_snake_case("Wildcard Submissions_generated.out") == "wildcard_submissions_generated.out"
