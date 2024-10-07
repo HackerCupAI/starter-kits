@@ -134,7 +134,7 @@ def find_problems(base_path: Path) -> list[Problem]:
     problems = []
 
     # Check if base_path contains problem directories (new structure)
-    has_problem_dirs = any((base_path / entry).is_dir() for entry in base_path.iterdir())
+    has_problem_dirs = any(entry.is_dir() for entry in base_path.iterdir())
     if has_problem_dirs:
         # New folder-naming based structure
         for problem_dir in base_path.iterdir():
@@ -173,6 +173,12 @@ if __name__ == "__main__":
 
     # load all problems in folder
     folder_path = Path("../dataset/2023/practice")
+    problems = find_problems(folder_path)
+    print(f"Found {len(problems)} problems in folder: {folder_path}")
+    assert len(problems) == 5, f"Expected 5 problems, got {len(problems)}"
+
+    # load all problems in folder
+    folder_path = Path("../dataset/2024/practice")
     problems = find_problems(folder_path)
     print(f"Found {len(problems)} problems in folder: {folder_path}")
     assert len(problems) == 5, f"Expected 5 problems, got {len(problems)}"
