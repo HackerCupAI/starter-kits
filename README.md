@@ -31,9 +31,9 @@ There is a series of lectures on YouTube that explain how to use the starter kit
 | August 13th | 5pm CET/ 8am PST | AutoGen: Solving Complex Coding Challenges Using a Multi-Agent Framework | David Titsworth & Andrzej Banburski-Fahey, Microsoft | [Watch](https://www.youtube.com/watch?v=jCq7oI54R_s) |
 | August 14th | 7pm CET/ 10am PST | Reinforcement learning | Vincent Moens, Meta | [Watch](https://www.youtube.com/watch?v=qMZfHKRwCCo) |
 | August 15th | 5pm CET/ 8am PST | SWEAgent | Kilian Lieret, SWEAgent | [Watch](https://www.youtube.com/watch?v=d9gcXpiiDao) |
-| August 20th | 5pm CET/ 8am PST | RAG | Bharat Ramanathan, Weights & Biases | - |
-| August 21st | 5pm CET/ 8am PST | FineTuning | Joe Cummings, TorchTune | - |
-| August 27th | 5pm CET/ 8am PST | DsPy | Krista Opsahl-Ong & Omar Khattab, DsPy | - |
+| August 20th | 5pm CET/ 8am PST | RAG | Bharat Ramanathan, Weights & Biases | [Watch](https://www.youtube.com/watch?v=cObBj2UpWK8)|
+| August 21st | 5pm CET/ 8am PST | FineTuning | Joe Cummings, TorchTune | [Watch](https://www.youtube.com/watch?v=RfQR9ZdZKh8) |
+| August 27th | 5pm CET/ 8am PST | DsPy | Krista Opsahl-Ong & Omar Khattab, DsPy | [Watch](https://youtu.be/gpe-rtJN8z8) |
 
 and more to come...
 
